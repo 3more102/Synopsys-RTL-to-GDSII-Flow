@@ -1,0 +1,8 @@
+# deterministic public test fixture
+Scenario : FUNC_FF_0P88V_M40C
+Mode : FUNC
+Corner : FF_0P88V_M40C
+Path Group : REG2REG
+slack (VIOLATED) -0.013 ns
+slack (VIOLATED) -0.005 ns
+slack (MET) 0.020 ns

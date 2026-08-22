@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "description": "Normalized QoR regression policy. Defaults are methodology examples and should be reviewed per project before use as release gates.",
+  "metrics": {
+    "setup_wns_ns": {"direction": "higher", "max_regression_abs": 0.05, "severity": "fail"},
+    "setup_tns_ns": {"direction": "higher", "max_regression_abs": 1.0, "severity": "fail"},
+    "hold_wns_ns": {"direction": "higher", "max_regression_abs": 0.02, "severity": "fail"},
+    "hold_tns_ns": {"direction": "higher", "max_regression_abs": 0.2, "severity": "fail"},
+    "total_cell_area_um2": {"direction": "lower", "max_regression_percent": 2.0, "severity": "warn"},
+    "total_w": {"direction": "lower", "max_regression_percent": 3.0, "severity": "warn"},
+    "drc_violations": {"direction": "lower", "max_regression_abs": 0.0, "severity": "fail"},
+    "wire_length_um": {"direction": "lower", "max_regression_percent": 5.0, "severity": "warn"},
+    "congestion_ratio": {"direction": "lower", "max_regression_abs": 0.02, "severity": "warn"},
+    "total_overflow": {"direction": "lower", "max_regression_abs": 0.01, "severity": "warn"},
+    "clock_skew_ns": {"direction": "lower", "max_regression_abs": 0.02, "severity": "warn"}
+  }
+}

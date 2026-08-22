@@ -1,0 +1,12 @@
+# deterministic public test fixture
+Clock Name : clk
+Clock Skew : 41 ps
+Source Latency : 0.120 ns
+Network Latency : 0.730 ns
+Total Latency : 0.850 ns
+Max Transition : 85 ps
+Sink Count : 1,248
+Buffer Count : 142
+Inverter Count : 23
+Clock Cell Count : 165
+Clock Tree Levels : 9

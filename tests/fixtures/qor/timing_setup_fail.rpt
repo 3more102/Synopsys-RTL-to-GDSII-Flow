@@ -1,0 +1,8 @@
+# deterministic public test fixture
+Scenario : FUNC_SS_0P72V_125C
+Mode : FUNC
+Corner : SS_0P72V_125C
+Path Group : REG2REG
+WNS : -0.042 ns
+TNS : -1.311 ns
+No. of Violating Paths : 17

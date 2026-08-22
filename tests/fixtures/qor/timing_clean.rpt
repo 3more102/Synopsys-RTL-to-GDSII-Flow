@@ -1,0 +1,8 @@
+# deterministic public test fixture - not customer/foundry data
+Scenario : FUNC_SS_0P72V_125C
+Mode : FUNC
+Corner : SS_0P72V_125C
+Path Group : REG2REG
+WNS : 84 ps
+TNS : 0.000 ns
+No. of Violating Paths : 0

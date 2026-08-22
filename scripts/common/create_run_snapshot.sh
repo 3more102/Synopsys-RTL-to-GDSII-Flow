@@ -7,6 +7,13 @@ PYTHON="${PYTHON:-python3}"
 # has a current content/methodology/technology/execution identity.
 "$PYTHON" "$ROOT/python/build_provenance.py"
 
+# Refresh normalized metrics before copying reports. This consumes existing
+# report evidence only; it launches no proprietary EDA tool and never fabricates
+# a value for a missing report/metric.
+if [[ -f "$ROOT/python/build_stage_metrics.py" ]]; then
+  "$PYTHON" "$ROOT/python/build_stage_metrics.py"
+fi
+
 stamp="$(date +%Y-%m-%d_%H%M%S)"
 run="$ROOT/runs/${stamp}_asic_run"
 mkdir -p "$run"
@@ -15,9 +22,10 @@ for d in config logs reports results checkpoints; do [[ -e "$ROOT/$d" ]] && cp -
   echo "date=$(date -Is)"; echo "hostname=$(hostname)"; echo "user=$(id -un)";
   if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "git_commit=$(git -C "$ROOT" rev-parse HEAD)"
+    echo "git_branch=$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
     echo "git_dirty=$(git -C "$ROOT" status --porcelain | grep -q . && echo YES || echo NO)"
   else
-    echo "git_commit=N/A"; echo "git_dirty=N/A"
+    echo "git_commit=N/A"; echo "git_branch=N/A"; echo "git_dirty=N/A"
   fi
   if [[ -f "$ROOT/reports/provenance/run_provenance.json" ]]; then
     digest=$("$PYTHON" - <<'PY' "$ROOT/reports/provenance/run_provenance.json"
@@ -26,6 +34,12 @@ print(json.load(open(sys.argv[1])).get('provenance_digest','UNKNOWN'))
 PY
 )
     echo "provenance_digest=$digest"
+  fi
+  if [[ -f "$ROOT/MOCK_RUN.json" ]]; then
+    echo "classification=MOCK"
+    echo "signoff_qualified=NO"
+  else
+    echo "classification=REAL"
   fi
   for t in "${DC_SHELL:-dc_shell}" "${ICC2_SHELL:-icc2_shell}" "${PT_SHELL:-pt_shell}" "${FM_SHELL:-fm_shell}"; do
     if command -v "$t" >/dev/null 2>&1; then
@@ -38,9 +52,12 @@ PY
 } > "$run/manifest.txt"
 find "$ROOT/rtl" "$ROOT/constraints" -maxdepth 2 -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum > "$run/input_hashes.sha256"
 
-# Re-index archived run history after the new snapshot exists. The indexer reads
-# only already-generated reports and therefore consumes no EDA license.
+# Re-index both the established scalar history and the normalized metric ledger
+# after the new snapshot exists. Both read generated evidence only.
 "$PYTHON" "$ROOT/python/index_run_history.py"
+if [[ -f "$ROOT/python/index_metric_history.py" ]]; then
+  "$PYTHON" "$ROOT/python/index_metric_history.py"
+fi
 
 # Refresh the history copy inside this snapshot so the archive contains the
 # timeline including itself, not only the history that existed before copying.
