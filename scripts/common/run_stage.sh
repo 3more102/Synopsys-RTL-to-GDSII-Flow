@@ -16,11 +16,8 @@ acquire_stage_lock(){
     lock_state="$(printf '%s\n' "$lock_info" | sed -n 's/^LOCK_STATE=//p' | tail -1)"
     if [[ $lock_check_rc -eq 0 && "$lock_state" == "STALE" && "${FLOW_RECOVER_STALE_LOCKS:-0}" == "1" ]]; then
       echo "Recovering proven-stale local lock because FLOW_RECOVER_STALE_LOCKS=1." >&2
-      if python3 "$lock_helper" recover --lock "$lock_dir" >&2 && mkdir "$lock_dir" 2>/dev/null; then
-        return 0
-      fi
-      echo "ERROR: stale lock recovery/reacquisition failed: $lock_dir" >&2
-      return 73
+      if python3 "$lock_helper" recover --lock "$lock_dir" >&2 && mkdir "$lock_dir" 2>/dev/null; then return 0; fi
+      echo "ERROR: stale lock recovery/reacquisition failed: $lock_dir" >&2; return 73
     fi
     if [[ "$lock_state" == "STALE" ]]; then
       echo "The lock is proven stale. Review it, then use './locks.sh recover --stage $slug' or set FLOW_RECOVER_STALE_LOCKS=1." >&2
@@ -61,6 +58,35 @@ extra_args=(); if [[ -n "${EDA_TOOL_ARGS:-}" ]]; then read -r -a extra_args <<< 
 set +e
 { echo "================================================================"; echo "ASIC FLOW STAGE METADATA"; echo "stage=$stage"; echo "project=${PROJECT_NAME:-MIPS_16}"; echo "top=${TOP_MODULE:-mips_16}"; echo "flow_run_id=${FLOW_RUN_ID:-UNSET}"; echo "start=$start_iso"; echo "hostname=$(hostname)"; echo "user=$(id -un)"; echo "tool=$tool"; echo "tool_path=$tool_path"; echo "script=$(realpath -m "$script")"; echo "project_root=$ROOT"; echo "run_directory=$(pwd)"; echo "git_commit=$git_commit"; echo "git_dirty=$git_dirty"; echo "stage_lock=$lock_dir"; echo "stage_lock_owner=$lock_dir/owner.json"; echo "================================================================"; "$tool" "${extra_args[@]}" -f "$script"; } 2>&1 | tee "$log"
 rc=${PIPESTATUS[0]}; set -e
+
+# A proprietary tool returning 0 is not sufficient evidence that its required
+# outputs were actually produced. Validate declared required artifacts before a
+# fingerprint can make this stage reusable. STAGE_OUTPUT_GATE=0 is an explicit
+# escape hatch for diagnosis only; the default is strict output-contract gating.
+output_gate_status="NOT_RUN"; output_gate_report=""
+if [[ $rc -eq 0 ]]; then
+  if [[ "${STAGE_OUTPUT_GATE:-1}" == "0" ]]; then
+    output_gate_status="DISABLED"
+    echo "WARNING: STAGE_OUTPUT_GATE=0; required output validation is disabled for stage '$stage'." | tee -a "$log" >&2
+  elif [[ ! -f "$ROOT/python/validate_stage_outputs.py" || ! -f "$ROOT/config/artifact_provenance.json" || ! -f "$ROOT/config/stage_graph.json" ]]; then
+    output_gate_status="ERROR"
+    echo "ERROR: stage output validator/contract is missing; refusing to trust exit code 0." | tee -a "$log" >&2
+    rc=76
+  else
+    set +e
+    gate_out="$(python3 "$ROOT/python/validate_stage_outputs.py" --stage "$stage" 2>&1)"; gate_rc=$?
+    set -e
+    printf '%s\n' "$gate_out" | tee -a "$log"
+    output_gate_status="$(printf '%s\n' "$gate_out" | sed -n 's/^STAGE_OUTPUT_STATUS=//p' | tail -1)"
+    output_gate_report="$(printf '%s\n' "$gate_out" | sed -n 's/^STAGE_OUTPUT_REPORT=//p' | tail -1)"
+    [[ -n "$output_gate_status" ]] || output_gate_status="ERROR"
+    if [[ $gate_rc -ne 0 ]]; then
+      echo "ERROR: required stage output contract failed for '$stage'; tool exit code was 0 but outputs are not trustworthy." | tee -a "$log" >&2
+      rc=76
+    fi
+  fi
+fi
+
 fingerprint_digest=""; fingerprint_file=""
 if [[ $rc -eq 0 && -f "$ROOT/python/stage_fingerprint.py" && -f "$ROOT/config/fingerprint_policy.json" ]]; then
   fp_log="$(python3 "$ROOT/python/stage_fingerprint.py" capture --stage "$stage" --if-known 2>&1)"; fp_rc=$?; printf '%s\n' "$fp_log" | tee -a "$log"
@@ -71,7 +97,7 @@ fi
 
 # Triage only failed executions. This is deliberately heuristic: the generated
 # report points engineers toward likely investigation categories but never marks
-# a root cause as proven and never changes the tool exit code.
+# a root cause as proven and never changes the tool/flow failure semantics.
 triage_json=""; triage_md=""; triage_primary=""; triage_category=""; triage_status="NOT_RUN"
 if [[ $rc -ne 0 && -f "$ROOT/python/triage_failure.py" && -f "$ROOT/config/failure_signatures.json" ]]; then
   set +e
@@ -109,6 +135,8 @@ cat > "$meta" <<EOF_META
   "git_dirty": "$(json_escape "$git_dirty")",
   "input_fingerprint": "$(json_escape "$fingerprint_file")",
   "input_digest": "$(json_escape "$fingerprint_digest")",
+  "output_gate_status": "$(json_escape "$output_gate_status")",
+  "output_gate_report": "$(json_escape "$output_gate_report")",
   "triage_status": "$(json_escape "$triage_status")",
   "triage_primary": "$(json_escape "$triage_primary")",
   "triage_category": "$(json_escape "$triage_category")",
@@ -140,9 +168,10 @@ if [[ $rc -eq 0 && -f "$ROOT/python/build_artifact_provenance.py" && -f "$ROOT/c
 fi
 
 if [[ $rc -eq 0 ]]; then
-  runner_state=PASS; detail="Tool process completed with exit code 0; engineering quality remains report/status driven."
+  runner_state=PASS; detail="Tool process completed with exit code 0 and required output contract passed/skipped; engineering quality remains report/status driven."
 else
-  runner_state=FAIL; detail="Tool process exited with code $rc. Inspect log=$log"
+  runner_state=FAIL; detail="Stage execution/flow validation exited with code $rc. Inspect log=$log"
+  if [[ "$output_gate_status" == "FAIL" || "$output_gate_status" == "ERROR" ]]; then detail="$detail; output_gate=$output_gate_status report=$output_gate_report"; fi
   if [[ -n "$triage_primary" && "$triage_primary" != "NONE" ]]; then detail="$detail; heuristic_triage=$triage_primary category=$triage_category report=$triage_md"; fi
 fi
 cat > "$runner_status" <<EOF_STATUS
@@ -152,6 +181,8 @@ detail=$detail
 time=$end_iso
 runtime_seconds=$duration
 metadata=$meta
+output_gate_status=$output_gate_status
+output_gate_report=$output_gate_report
 triage_status=$triage_status
 triage_primary=$triage_primary
 triage_report=$triage_md
@@ -159,6 +190,6 @@ artifact_provenance_status=$artifact_provenance_status
 artifact_provenance=$artifact_provenance_file
 artifact_provenance_missing_required=$artifact_provenance_missing
 EOF_STATUS
-echo "================================================================" | tee -a "$log"; echo "stage=$stage exit_code=$rc duration_seconds=$duration" | tee -a "$log"; echo "runtime_metadata=$meta" | tee -a "$log"; if [[ -n "$triage_md" ]]; then echo "failure_triage=$triage_md" | tee -a "$log"; fi; if [[ -n "$artifact_provenance_file" ]]; then echo "artifact_provenance=$artifact_provenance_file status=$artifact_provenance_status missing_required=${artifact_provenance_missing:-0}" | tee -a "$log"; fi; echo "================================================================" | tee -a "$log"
+echo "================================================================" | tee -a "$log"; echo "stage=$stage exit_code=$rc duration_seconds=$duration" | tee -a "$log"; echo "runtime_metadata=$meta" | tee -a "$log"; echo "output_gate=$output_gate_status report=$output_gate_report" | tee -a "$log"; if [[ -n "$triage_md" ]]; then echo "failure_triage=$triage_md" | tee -a "$log"; fi; if [[ -n "$artifact_provenance_file" ]]; then echo "artifact_provenance=$artifact_provenance_file status=$artifact_provenance_status missing_required=${artifact_provenance_missing:-0}" | tee -a "$log"; fi; echo "================================================================" | tee -a "$log"
 if [[ $rc -ne 0 ]]; then echo "ERROR: stage '$stage' failed with exit code $rc" >&2; fi
 exit "$rc"
