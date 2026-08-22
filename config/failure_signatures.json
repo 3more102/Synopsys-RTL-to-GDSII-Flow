@@ -35,6 +35,22 @@
       ]
     },
     {
+      "id": "required_output_missing_or_invalid",
+      "category": "artifact_output",
+      "priority": 92,
+      "patterns": [
+        "required stage output contract failed",
+        "missing_required_output",
+        "invalid_required_output",
+        "required output patterns are missing or unusable"
+      ],
+      "guidance": [
+        "Inspect the stage output-contract JSON and identify the first missing, empty, non-regular, or escaped artifact.",
+        "Treat a tool exit code of zero as insufficient until required outputs are proven usable.",
+        "Fix the generating stage or its configured output path before capturing a reusable checkpoint fingerprint."
+      ]
+    },
+    {
       "id": "unsupported_tcl_command",
       "category": "version_compatibility",
       "priority": 90,
