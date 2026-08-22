@@ -12,7 +12,7 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from report_utils import status_record
 from rich_qor import parse_area, parse_cts, parse_physical_verification, parse_power_detail, parse_route, parse_timing
@@ -86,10 +86,23 @@ def runtime_record(root: Path, name: str) -> dict[str, Any]:
 
 def provenance_identity(root: Path) -> dict[str, Any]:
     p = load_json(root / "reports" / "provenance" / "run_provenance.json")
+    marker = load_json(root / "MOCK_RUN.json")
     git = p.get("git") if isinstance(p.get("git"), dict) else {}
+    if marker.get("mock") is True:
+        # Mock identity must come from the mock marker rather than falling back
+        # to real-project environment defaults. This prevents a mock run from
+        # being indexed as MIPS_16/mips_16 or another real design accidentally.
+        return {
+            "project": marker.get("project", "MOCK_CHIP"),
+            "top": marker.get("top", f"{str(marker.get('project', 'MOCK_CHIP')).lower()}_mock"),
+            "technology": marker.get("technology", "MOCK_TECHNOLOGY_NOT_SIGNOFF"),
+            "git_commit": git.get("commit", ""), "branch": git.get("branch", ""), "dirty": git.get("dirty", ""),
+            "provenance_digest": p.get("provenance_digest", ""),
+        }
     return {
         "project": p.get("project", os.environ.get("PROJECT_NAME", "MIPS_16")),
         "top": p.get("top_module", os.environ.get("TOP_MODULE", "mips_16")),
+        "technology": p.get("groups", {}).get("technology", {}).get("digest", "") if isinstance(p.get("groups"), dict) else "",
         "git_commit": git.get("commit", ""), "branch": git.get("branch", ""), "dirty": git.get("dirty", ""),
         "provenance_digest": p.get("provenance_digest", ""),
     }
@@ -117,26 +130,21 @@ def flatten_result(result: dict[str, Any], source: str, classification_name: str
             "source": source, "evidence": metric.get("evidence", []), "classification": classification_name, "analysis_classification": analysis_class,
         })
     for scenario_result in result.get("scenarios", []):
-        if isinstance(scenario_result, dict):
-            rows.extend(flatten_result(scenario_result, source, classification_name, stage, analysis_class))
+        if isinstance(scenario_result, dict): rows.extend(flatten_result(scenario_result, source, classification_name, stage, analysis_class))
     return rows
 
 
 def build_stage(root: Path, stage: str) -> dict[str, Any]:
     if stage not in STAGES: raise ValueError(f"unknown stage: {stage}")
-    cfg = STAGES[stage]
-    class_name, signoff_qualified, mock_scenario = classification(root)
-    runtime = runtime_record(root, cfg["runtime"])
-    identity = provenance_identity(root)
+    cfg = STAGES[stage]; class_name, signoff_qualified, mock_scenario = classification(root)
+    runtime = runtime_record(root, cfg["runtime"]); identity = provenance_identity(root)
     analysis_class = "MOCK" if class_name == "MOCK" else ("SIGNOFF_CANDIDATE" if stage == "signoff" else "IMPLEMENTATION")
     metrics: list[dict[str, Any]] = []; sources: list[dict[str, Any]] = []
     for kind, rel, analysis in cfg["sources"]:
         path = root / rel
         if not path.is_file():
-            sources.append({"path": rel, "kind": kind, "analysis": analysis, "exists": False, "parse_status": "NOT_RUN"})
-            continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        result = parse_source(kind, text, analysis)
+            sources.append({"path": rel, "kind": kind, "analysis": analysis, "exists": False, "parse_status": "NOT_RUN"}); continue
+        text = path.read_text(encoding="utf-8", errors="replace"); result = parse_source(kind, text, analysis)
         sources.append({"path": rel, "kind": kind, "analysis": analysis, "exists": True, "parse_status": result.get("status", "UNKNOWN"), "warnings": result.get("warnings", [])})
         metrics.extend(flatten_result(result, rel, class_name, stage, analysis_class))
     status = status_record(root, cfg["status"])
@@ -150,8 +158,7 @@ def build_stage(root: Path, stage: str) -> dict[str, Any]:
 
 
 def build_all(root: Path, stages: list[str] | None = None) -> dict[str, Any]:
-    chosen = stages or list(STAGES)
-    payloads = {stage: build_stage(root, stage) for stage in chosen}
+    chosen = stages or list(STAGES); payloads = {stage: build_stage(root, stage) for stage in chosen}
     class_name, signoff_qualified, mock_scenario = classification(root)
     return {
         "schema_version": 1, "generated_at": datetime.now(timezone.utc).isoformat(), "classification": class_name,
