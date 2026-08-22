@@ -20,7 +20,7 @@
         "scripts/**/*.tcl", "scripts/**/*.sh", "python/**/*.py",
         "config/flow_options.tcl", "config/stage_contracts.json", "config/qor_policy.json",
         "config/fingerprint_policy.json", "config/sdc_audit_policy.json", "config/tool_capabilities.json",
-        "config/provenance_policy.json"
+        "config/mmmc_coverage_policy.json", "config/provenance_policy.json"
       ],
       "env": [
         "SYNTH_EFFORT", "PHYS_EFFORT", "ENABLE_INCREMENTAL_SYNTH", "ENABLE_CLOCK_GATING",
