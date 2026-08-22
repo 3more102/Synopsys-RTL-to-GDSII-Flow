@@ -15,7 +15,7 @@ CONFIGS := $(wildcard config/*.tcl)
 SDCS := $(wildcard constraints/*.sdc)
 COMMON := $(wildcard scripts/common/*.tcl)
 
-.PHONY: help static config-check test-parsers sdc-audit capabilities doctor fingerprint freshness provenance compare-provenance release-manifest qor-gate env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
+.PHONY: help static config-check test-parsers sdc-audit capabilities doctor fingerprint freshness provenance compare-provenance release-manifest qor-gate mmmc-audit mmmc-signoff-audit env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
 
 ENV_STAMP := checkpoints/environment/environment.status
 LINT_STAMP := checkpoints/lint/lint.status
@@ -51,10 +51,12 @@ help:
 	@echo "  env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts"
 	@echo "  route postroute closure outputs extract signoff power eco drc gds lvs reports final verify release all"
 	@echo "Quality/safety/reproducibility targets:"
-	@echo "  static             = license-free repository validation + unit tests + SDC audit"
+	@echo "  static             = license-free repository validation + unit tests + SDC/MMMC audits"
 	@echo "  config-check       = Tcl configuration sanity validation"
 	@echo "  test-parsers       = Python parser/quality-gate unit tests"
 	@echo "  sdc-audit          = static heuristic timing-exception safety audit"
+	@echo "  mmmc-audit         = structural mode/corner/scenario coverage audit"
+	@echo "  mmmc-signoff-audit = require enabled scenarios + scenario report evidence"
 	@echo "  capabilities       = advisory installed Synopsys command compatibility probe"
 	@echo "  doctor             = static checks + capability probe before expensive runs"
 	@echo "  fingerprint        = capture stage input fingerprint; use STAGE=synth"
@@ -79,6 +81,12 @@ test-parsers:
 
 sdc-audit:
 	@$(PYTHON) python/sdc_audit.py --check
+
+mmmc-audit:
+	@$(PYTHON) python/validate_mmmc_coverage.py
+
+mmmc-signoff-audit:
+	@$(PYTHON) python/validate_mmmc_coverage.py --require-enabled --require-evidence
 
 capabilities:
 	@$(PYTHON) python/probe_capabilities.py $(if $(filter 1,$(REQUIRE_TOOL_CAPABILITIES)),--require,)
