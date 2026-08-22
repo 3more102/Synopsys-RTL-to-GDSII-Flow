@@ -15,9 +15,16 @@
 *.session
 *.ses
 *.ddc
+
+# Local promoted baselines can contain machine/PDK/library provenance paths.
+# Keep them private to the engineer unless an intentionally scrubbed baseline
+# is reviewed and published separately.
+/baselines/local/
+
 # Large final binaries are usually distributed separately
 /gds/*.gds
 /gds/*.oas
+
 # Preserve scripts, configs, reports and final manifests by default.
 __pycache__/
 *.pyc
