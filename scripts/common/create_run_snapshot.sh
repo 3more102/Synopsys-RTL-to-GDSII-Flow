@@ -37,4 +37,17 @@ PY
   done
 } > "$run/manifest.txt"
 find "$ROOT/rtl" "$ROOT/constraints" -maxdepth 2 -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum > "$run/input_hashes.sha256"
+
+# Re-index archived run history after the new snapshot exists. The indexer reads
+# only already-generated reports and therefore consumes no EDA license.
+"$PYTHON" "$ROOT/python/index_run_history.py"
+
+# Refresh the history copy inside this snapshot so the archive contains the
+# timeline including itself, not only the history that existed before copying.
+if [[ -d "$ROOT/reports/history" ]]; then
+  rm -rf "$run/reports/history"
+  mkdir -p "$run/reports"
+  cp -a "$ROOT/reports/history" "$run/reports/history"
+fi
+
 echo "$run"
