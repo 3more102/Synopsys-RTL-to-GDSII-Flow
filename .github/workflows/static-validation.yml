@@ -1,0 +1,25 @@
+name: Static Validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: static-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-static-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Tcl interpreter
+        run: sudo apt-get update && sudo apt-get install -y tcl
+      - name: Validate Bash, Python, JSON, Tcl/SDC, Makefile
+        run: bash scripts/common/static_validate.sh
