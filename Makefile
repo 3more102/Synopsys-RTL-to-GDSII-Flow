@@ -15,7 +15,7 @@ CONFIGS := $(wildcard config/*.tcl)
 SDCS := $(wildcard constraints/*.sdc)
 COMMON := $(wildcard scripts/common/*.tcl)
 
-.PHONY: help static env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
+.PHONY: help static config-check test-parsers env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
 
 ENV_STAMP := checkpoints/environment/environment.status
 LINT_STAMP := checkpoints/lint/lint.status
@@ -50,12 +50,19 @@ help:
 	@echo "Complete ASIC flow targets:"
 	@echo "  env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts"
 	@echo "  route postroute closure outputs extract signoff power eco drc gds lvs reports final verify release all"
-	@echo "  static = license-free repository validation; release = final + verify + snapshot"
+	@echo "  static = license-free repository validation; config-check = Tcl config sanity; test-parsers = parser unit tests"
+	@echo "  release = final + verify + snapshot"
 	@echo "Stamps prevent expensive completed stages from rerunning when their inputs are unchanged."
 	@echo "After changing physical technology/floorplan inputs, use 'make distclean' deliberately before rebuilding the ICC2 database."
 
 static:
 	@bash scripts/common/static_validate.sh
+
+config-check:
+	@tclsh scripts/common/validate_config.tcl
+
+test-parsers:
+	@PYTHONPATH="$(ROOT)/python" $(PYTHON) -m unittest discover -s tests -p "test_*.py" -v
 
 env: $(ENV_STAMP)
 $(ENV_STAMP): $(CONFIGS) $(SDCS) $(COMMON) $(RTL_SRCS)
