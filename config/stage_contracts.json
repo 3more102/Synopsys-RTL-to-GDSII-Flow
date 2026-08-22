@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "description": "Machine-readable release verification contract. Paths are relative to repository root and support ${PROJECT_NAME} substitution.",
+  "required_artifacts": [
+    {"path": "netlist/${PROJECT_NAME}_postroute.v", "min_bytes": 1, "reason": "final routed gate-level netlist"},
+    {"path": "results/final/${PROJECT_NAME}_final.sdc", "min_bytes": 1, "reason": "final timing constraints"},
+    {"path": "spef/${PROJECT_NAME}_postroute.spef", "min_bytes": 1, "reason": "post-route parasitic exchange"},
+    {"path": "gds/${PROJECT_NAME}.gds", "min_bytes": 1, "reason": "streamed physical layout"}
+  ],
+  "optional_artifacts": [
+    {"path": "sdf/${PROJECT_NAME}_postroute.sdf", "min_bytes": 1, "reason": "gate-level timing back-annotation; require explicitly with REQUIRE_SDF=1"},
+    {"path": "reports/power/vectorless_power.rpt", "min_bytes": 1, "reason": "vectorless post-layout power estimate"}
+  ],
+  "required_status": {
+    "synthesis": ["PASS"],
+    "formal": ["PASS"],
+    "extraction": ["PASS"],
+    "setup_sta": ["PASS"],
+    "hold_sta": ["PASS"],
+    "gds": ["GENERATED", "PASS"]
+  },
+  "advisory_status": {
+    "power": ["PASS", "UNKNOWN"],
+    "drc": ["PASS", "UNKNOWN"],
+    "lvs": ["PASS", "UNKNOWN"]
+  },
+  "strict_signoff_status": {
+    "drc": ["PASS"],
+    "lvs": ["PASS"]
+  }
+}
