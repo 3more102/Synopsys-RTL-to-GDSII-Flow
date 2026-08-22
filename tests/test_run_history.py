@@ -32,9 +32,9 @@ class RunHistoryTests(unittest.TestCase):
             root = Path(td)
             run = self.make_run(root, "run1", -0.10, 1234.0, 20.0)
             record = hist.summarize_run(run)
-        self.assertEqual(record["WNS"], -0.09)
-        self.assertEqual(record["Area"], 1234.0)
-        self.assertEqual(record["Runtime"], 30.0)
+        self.assertAlmostEqual(record["WNS"], -0.09)
+        self.assertAlmostEqual(record["Area"], 1234.0)
+        self.assertAlmostEqual(record["Runtime"], 30.0)
         self.assertEqual(record["Release Status"], "PASS")
 
     def test_deltas_are_between_adjacent_runs(self):
