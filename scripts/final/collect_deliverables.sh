@@ -11,6 +11,17 @@ copy_if(){ [[ -f "$1" ]] && cp -f "$1" "$2" || true; }
 # contains the identity of the inputs/methodology/technology used at delivery time.
 "$PYTHON" "$ROOT/python/build_provenance.py"
 
+# Refresh advisory rebuild evidence and the self-contained dashboard before
+# copying reports into final_delivery. The rebuild planner is evidence-only and
+# never launches a licensed EDA tool. A stale plan is recorded rather than hidden;
+# final release acceptance remains governed by verify_artifacts/QoR policy.
+if [[ -f "$ROOT/python/plan_rebuild.py" ]]; then
+  "$PYTHON" "$ROOT/python/plan_rebuild.py" || true
+fi
+if [[ -f "$ROOT/python/generate_dashboard.py" ]]; then
+  "$PYTHON" "$ROOT/python/generate_dashboard.py"
+fi
+
 copy_if "$ROOT/gds/${PROJECT_NAME}.gds" "$OUT/${PROJECT_NAME}.gds"
 copy_if "$ROOT/netlist/${PROJECT_NAME}_postroute.v" "$OUT/${PROJECT_NAME}_postroute.v"
 copy_if "$ROOT/sdf/${PROJECT_NAME}_postroute.sdf" "$OUT/${PROJECT_NAME}_postroute.sdf"
