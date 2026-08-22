@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "description": "Stage freshness policy. Repository files are content-hashed; external PDK/library paths use normalized path + size + mtime by default to avoid hashing very large vendor databases.",
+  "external_path_mode": "stat",
+  "common_env": [
+    "PROJECT_NAME", "TOP_MODULE", "TECHNOLOGY", "PROCESS_NODE",
+    "CLOCK_NAME", "CLOCK_PORT", "CLOCK_PERIOD",
+    "CORE_UTILIZATION", "CORE_ASPECT_RATIO", "CORE_OFFSET"
+  ],
+  "common_external_env_paths": [
+    "TARGET_LIBRARY", "STD_CELL_NDM", "TECH_FILE",
+    "TLU_PLUS_MAX", "TLU_PLUS_MIN", "TLU_PLUS_MAP"
+  ],
+  "aliases": {
+    "env": "environment",
+    "lint": "lint",
+    "synth": "synthesis",
+    "formal": "formality",
+    "presta": "prelayout_sta",
+    "init": "icc2_init",
+    "floorplan": "floorplan",
+    "powerplan": "powerplan",
+    "place": "placement",
+    "prects": "pre_cts",
+    "cts": "cts",
+    "postcts": "post_cts",
+    "route": "route",
+    "postroute": "route_opt",
+    "closure": "closure",
+    "outputs": "outputs",
+    "extract": "extraction",
+    "signoff": "signoff",
+    "power": "power",
+    "drc": "drc_prep",
+    "gds": "gds",
+    "lvs": "lvs_prep"
+  },
+  "stages": {
+    "environment": {"files": ["config/*.tcl", "constraints/*.sdc", "rtl/*.v", "rtl/*.sv", "scripts/common/check_environment.tcl", "scripts/common/report_environment.tcl"], "tool_env": "DC_SHELL"},
+    "lint": {"files": ["config/*.tcl", "rtl/*.v", "rtl/*.sv", "scripts/lint/generic_rtl_check.tcl"], "tool_env": "DC_SHELL"},
+    "synthesis": {"files": ["config/*.tcl", "constraints/*.sdc", "rtl/*.v", "rtl/*.sv", "scripts/synthesis/*.tcl", "scripts/common/*.tcl"], "env": ["SYNTH_EFFORT", "SYNTH_FLATTEN", "ENABLE_INCREMENTAL_SYNTH", "ENABLE_CLOCK_GATING"], "tool_env": "DC_SHELL"},
+    "formality": {"files": ["config/*.tcl", "rtl/*.v", "rtl/*.sv", "scripts/formal/*.tcl", "results/synthesis/*_syn.v", "results/synthesis/*.svf"], "tool_env": "FM_SHELL"},
+    "prelayout_sta": {"files": ["config/*.tcl", "constraints/*.sdc", "scripts/sta/*.tcl", "results/synthesis/*_syn.v", "results/synthesis/*_syn.sdc"], "tool_env": "PT_SHELL"},
+    "icc2_init": {"files": ["config/*.tcl", "constraints/*.sdc", "scripts/floorplan/00_create_design_lib.tcl", "scripts/floorplan/icc2_common.tcl", "results/synthesis/*_syn.v"], "tool_env": "ICC2_SHELL"},
+    "floorplan": {"files": ["config/*.tcl", "scripts/floorplan/*.tcl"], "env": ["FLOORPLAN_USE_EXPLICIT_DIE", "DIE_BOUNDARY", "MACRO_HALO", "MACRO_CHANNEL"], "tool_env": "ICC2_SHELL"},
+    "powerplan": {"files": ["config/*.tcl", "scripts/powerplan/*.tcl"], "env": ["ENABLE_PG_GEOMETRY", "PG_RING_H_LAYER", "PG_RING_V_LAYER", "PG_MESH_H_LAYER", "PG_MESH_V_LAYER", "PG_STD_CELL_RAIL_LAYER"], "tool_env": "ICC2_SHELL"},
+    "placement": {"files": ["config/*.tcl", "scripts/placement/*.tcl"], "env": ["PHYS_EFFORT"], "tool_env": "ICC2_SHELL"},
+    "pre_cts": {"files": ["config/*.tcl", "scripts/placement/03_pre_cts_opt.tcl"], "tool_env": "ICC2_SHELL"},
+    "cts": {"files": ["config/*.tcl", "scripts/cts/*.tcl"], "tool_env": "ICC2_SHELL"},
+    "post_cts": {"files": ["config/*.tcl", "scripts/cts/04_post_cts_opt.tcl"], "tool_env": "ICC2_SHELL"},
+    "route": {"files": ["config/*.tcl", "scripts/routing/01_route.tcl"], "tool_env": "ICC2_SHELL"},
+    "route_opt": {"files": ["config/*.tcl", "scripts/routing/02_route_opt.tcl"], "tool_env": "ICC2_SHELL"},
+    "closure": {"files": ["config/*.tcl", "scripts/routing/04_timing_closure.tcl"], "env": ["ROUTE_TIMING_CLOSURE_ITERS"], "tool_env": "ICC2_SHELL"},
+    "outputs": {"files": ["config/*.tcl", "scripts/final/00_write_outputs.tcl", "scripts/final/02_insert_fillers.tcl"], "tool_env": "ICC2_SHELL"},
+    "extraction": {"files": ["config/*.tcl", "scripts/extraction/*.tcl", "scripts/extraction/*.sh"], "env": ["ENABLE_STARRC", "ENABLE_SBPF", "ENABLE_DSPF"], "tool_env": "ICC2_SHELL"},
+    "signoff": {"files": ["config/*.tcl", "constraints/*.sdc", "scripts/signoff/*.tcl", "netlist/*_postroute.v", "spef/*_postroute.spef", "results/final/*_final.sdc"], "env": ["ENABLE_SI", "MAX_PATHS"], "tool_env": "PT_SHELL"},
+    "power": {"files": ["config/*.tcl", "scripts/power/*.tcl", "netlist/*_postroute.v", "spef/*_postroute.spef"], "env": ["ENABLE_SAIF_POWER"], "tool_env": "PT_SHELL"},
+    "drc_prep": {"files": ["config/*.tcl", "scripts/physical_verification/01_drc_setup.tcl"], "external_env_paths": ["ICV_DRC_RUNSET"], "tool_env": "ICC2_SHELL"},
+    "gds": {"files": ["config/*.tcl", "scripts/final/01_write_gds.tcl"], "external_env_paths": ["GDS_LAYER_MAP"], "tool_env": "ICC2_SHELL"},
+    "lvs_prep": {"files": ["config/*.tcl", "scripts/physical_verification/02_lvs_setup.tcl"], "external_env_paths": ["ICV_LVS_RUNSET"], "tool_env": "DC_SHELL"}
+  }
+}

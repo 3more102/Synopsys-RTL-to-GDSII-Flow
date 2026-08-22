@@ -15,7 +15,7 @@ CONFIGS := $(wildcard config/*.tcl)
 SDCS := $(wildcard constraints/*.sdc)
 COMMON := $(wildcard scripts/common/*.tcl)
 
-.PHONY: help static config-check test-parsers qor-gate env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
+.PHONY: help static config-check test-parsers sdc-audit capabilities doctor fingerprint freshness qor-gate env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
 
 ENV_STAMP := checkpoints/environment/environment.status
 LINT_STAMP := checkpoints/lint/lint.status
@@ -50,10 +50,19 @@ help:
 	@echo "Complete ASIC flow targets:"
 	@echo "  env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts"
 	@echo "  route postroute closure outputs extract signoff power eco drc gds lvs reports final verify release all"
-	@echo "  static = license-free repository validation; config-check = Tcl config sanity; test-parsers = parser unit tests"
-	@echo "  qor-gate = compare current QoR against QOR_BASELINE using config/qor_policy.json"
-	@echo "  release = final + verify + snapshot"
-	@echo "Stamps prevent expensive completed stages from rerunning when their inputs are unchanged."
+	@echo "Quality/safety targets:"
+	@echo "  static         = license-free repository validation + unit tests + SDC audit"
+	@echo "  config-check   = Tcl configuration sanity validation"
+	@echo "  test-parsers   = Python parser/quality-gate unit tests"
+	@echo "  sdc-audit      = static heuristic timing-exception safety audit"
+	@echo "  capabilities   = advisory installed Synopsys command compatibility probe"
+	@echo "  doctor         = static checks + capability probe before expensive runs"
+	@echo "  fingerprint    = capture input fingerprint; use STAGE=synth"
+	@echo "  freshness      = verify saved fingerprint; use STAGE=synth [DETAILS=1]"
+	@echo "  qor-gate       = compare current QoR against QOR_BASELINE using config/qor_policy.json"
+	@echo "  release        = final + verify + snapshot"
+	@echo "Stamps prevent expensive completed stages from rerunning when tracked inputs are unchanged."
+	@echo "run_flow.sh additionally checks environment/PDK/tool fingerprints before reusing checkpoints."
 	@echo "After changing physical technology/floorplan inputs, use 'make distclean' deliberately before rebuilding the ICC2 database."
 
 static:
@@ -65,7 +74,25 @@ config-check:
 test-parsers:
 	@PYTHONPATH="$(ROOT)/python" $(PYTHON) -m unittest discover -s tests -p "test_*.py" -v
 
+sdc-audit:
+	@$(PYTHON) python/sdc_audit.py --check
+
+capabilities:
+	@$(PYTHON) python/probe_capabilities.py $(if $(filter 1,$(REQUIRE_TOOL_CAPABILITIES)),--require,)
+
+doctor: static capabilities
+	@echo "Flow doctor complete. Static checks passed; see reports/capabilities/ for installed-tool compatibility evidence."
+
+fingerprint:
+	@test -n "$(STAGE)" || { echo "ERROR: use 'make fingerprint STAGE=synth'" >&2; exit 2; }
+	@$(PYTHON) python/stage_fingerprint.py capture --stage "$(STAGE)"
+
+freshness:
+	@test -n "$(STAGE)" || { echo "ERROR: use 'make freshness STAGE=synth'" >&2; exit 2; }
+	@$(PYTHON) python/stage_fingerprint.py check --stage "$(STAGE)" $(if $(filter 1,$(DETAILS)),--details,)
+
 qor-gate: $(SUMMARY_STAMP) config/qor_policy.json python/check_qor_regression.py
+	@test -n "$(QOR_BASELINE)" || { echo "ERROR: QOR_BASELINE must point to a known-good qor_summary.json" >&2; exit 2; }
 	@$(PYTHON) python/check_qor_regression.py --baseline "$(QOR_BASELINE)"
 
 env: $(ENV_STAMP)
