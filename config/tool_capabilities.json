@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "description": "Release-compatibility command probe. Commands are detected with Tcl info commands; they are not executed by the probe.",
+  "tools": {
+    "dc": {"env": "DC_SHELL", "default": "dc_shell", "required": ["analyze", "elaborate", "link", "check_design", "compile_ultra", "report_timing", "write_file", "write_sdc"], "optional": ["set_clock_gating_style", "compile", "write_sdf"]},
+    "icc2": {"env": "ICC2_SHELL", "default": "icc2_shell", "required": ["create_lib", "open_lib", "read_verilog", "link_block", "initialize_floorplan", "place_opt", "clock_opt", "route_auto", "route_opt", "report_qor", "save_block"], "optional": ["write_gds", "write_parasitics", "create_pg_ring_pattern", "create_pg_mesh_pattern", "create_pg_std_cell_conn_pattern", "compile_pg", "check_pg_connectivity", "check_pg_drc"]},
+    "pt": {"env": "PT_SHELL", "default": "pt_shell", "required": ["read_verilog", "read_sdc", "link_design", "update_timing", "report_timing", "check_timing", "report_constraint"], "optional": ["read_parasitics", "report_power", "set_propagated_clock"]},
+    "fm": {"env": "FM_SHELL", "default": "fm_shell", "required": ["read_verilog", "set_top", "match", "verify"], "optional": ["read_sverilog", "report_failing_points", "report_unmatched_points", "report_aborted_points"]}
+  }
+}

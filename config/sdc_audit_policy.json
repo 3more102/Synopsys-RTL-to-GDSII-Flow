@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "description": "Static SDC safety policy. This is a heuristic review aid, not a replacement for check_timing/report_exceptions in DC/ICC2/PrimeTime.",
+  "fail_severities": ["ERROR"],
+  "require_primary_clock": true,
+  "broad_collection_commands": ["get_ports", "get_pins", "get_cells", "get_nets", "get_clocks"],
+  "risky_commands": ["set_false_path", "set_multicycle_path", "set_disable_timing", "set_clock_groups", "set_max_delay", "set_min_delay"],
+  "ignore_codes": []
+}
