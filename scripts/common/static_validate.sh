@@ -19,6 +19,7 @@ PY
 say "Checking JSON configuration"; for f in config/*.json; do python3 -m json.tool "$f" >/dev/null; done
 say "Checking Makefile parse"; make --no-print-directory -s help >/dev/null
 say "Checking configuration relationships"; tclsh scripts/common/validate_config.tcl
+say "Checking flow DAG / fingerprint / Make target consistency"; python3 python/validate_flow_model.py --json-out reports/summary/flow_model_validation.json
 say "Running Python unit tests"; PYTHONPATH="$ROOT/python" python3 -m unittest discover -s tests -p "test_*.py" -v
 say "Checking stage fingerprint policy load"; python3 python/stage_fingerprint.py list >/dev/null
 say "Running static SDC safety audit"; python3 python/sdc_audit.py --check
