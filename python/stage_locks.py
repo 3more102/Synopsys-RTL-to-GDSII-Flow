@@ -47,7 +47,6 @@ def process_start_ticks(pid: int) -> str:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return ""
-    # Field 2 is '(comm)' and may contain spaces, so split after the final ')'.
     close = text.rfind(")")
     if close < 0:
         return ""
@@ -70,16 +69,24 @@ def pid_alive(pid: int) -> bool:
         return False
 
 
-def owner_record(stage: str, tool: str, script: str, flow_run_id: str) -> dict[str, Any]:
-    pid = os.getpid()
+def owner_record(
+    stage: str,
+    tool: str,
+    script: str,
+    flow_run_id: str,
+    pid: int | None = None,
+    ppid: int | None = None,
+) -> dict[str, Any]:
+    owner_pid = os.getpid() if pid is None else int(pid)
+    owner_ppid = os.getppid() if ppid is None else int(ppid)
     return {
         "schema_version": 1,
         "stage": stage,
-        "pid": pid,
-        "ppid": os.getppid(),
+        "pid": owner_pid,
+        "ppid": owner_ppid,
         "hostname": socket.gethostname(),
         "boot_id": boot_id(),
-        "process_start_ticks": process_start_ticks(pid),
+        "process_start_ticks": process_start_ticks(owner_pid),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "tool": tool,
         "script": script,
@@ -88,14 +95,22 @@ def owner_record(stage: str, tool: str, script: str, flow_run_id: str) -> dict[s
     }
 
 
-def write_owner(lock_dir: Path, stage: str, tool: str, script: str, flow_run_id: str) -> Path:
+def write_owner(
+    lock_dir: Path,
+    stage: str,
+    tool: str,
+    script: str,
+    flow_run_id: str,
+    pid: int | None = None,
+    ppid: int | None = None,
+) -> Path:
     lock_dir = lock_dir.resolve()
     if not lock_dir.is_dir():
         raise ValueError(f"lock directory does not exist: {lock_dir}")
     if not inside(DEFAULT_LOCK_ROOT, lock_dir):
         raise ValueError(f"refusing to write owner outside {DEFAULT_LOCK_ROOT}: {lock_dir}")
     path = lock_dir / OWNER_FILE
-    atomic_json(path, owner_record(stage, tool, script, flow_run_id))
+    atomic_json(path, owner_record(stage, tool, script, flow_run_id, pid=pid, ppid=ppid))
     return path
 
 
@@ -151,28 +166,28 @@ def inspect_lock(lock_dir: Path) -> dict[str, Any]:
         }
 
     try:
-        pid = int(owner.get("pid", 0))
+        owner_pid = int(owner.get("pid", 0))
     except (TypeError, ValueError):
         return {**base, "state": "UNKNOWN", "reason": "owner PID is invalid", "owner": owner}
-    if pid <= 0:
+    if owner_pid <= 0:
         return {**base, "state": "UNKNOWN", "reason": "owner PID is missing/non-positive", "owner": owner}
-    if not pid_alive(pid):
-        return {**base, "state": "STALE", "reason": f"owner PID {pid} is not alive", "owner": owner}
+    if not pid_alive(owner_pid):
+        return {**base, "state": "STALE", "reason": f"owner PID {owner_pid} is not alive", "owner": owner}
 
     recorded_start = str(owner.get("process_start_ticks", ""))
-    current_start = process_start_ticks(pid)
+    current_start = process_start_ticks(owner_pid)
     if recorded_start and current_start and recorded_start != current_start:
         return {
             **base,
             "state": "STALE",
-            "reason": f"PID {pid} was reused; process start identity differs",
+            "reason": f"PID {owner_pid} was reused; process start identity differs",
             "owner": owner,
         }
 
     return {
         **base,
         "state": "ACTIVE",
-        "reason": f"owner PID {pid} is alive on the local host",
+        "reason": f"owner PID {owner_pid} is alive on the local host",
         "owner": owner,
     }
 
@@ -241,6 +256,8 @@ def main() -> int:
     record.add_argument("--tool", default="")
     record.add_argument("--script", default="")
     record.add_argument("--flow-run-id", default="")
+    record.add_argument("--pid", type=int, default=None, help="Owning runner PID; defaults to this helper process only for manual use.")
+    record.add_argument("--ppid", type=int, default=None)
 
     check = sub.add_parser("check")
     check.add_argument("--lock", required=True)
@@ -257,7 +274,15 @@ def main() -> int:
     args = ap.parse_args()
     try:
         if args.command == "record":
-            path = write_owner(Path(args.lock), args.stage, args.tool, args.script, args.flow_run_id)
+            path = write_owner(
+                Path(args.lock),
+                args.stage,
+                args.tool,
+                args.script,
+                args.flow_run_id,
+                pid=args.pid,
+                ppid=args.ppid,
+            )
             print(f"LOCK_OWNER={path}")
             return 0
         if args.command == "check":
