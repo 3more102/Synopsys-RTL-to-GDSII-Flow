@@ -58,7 +58,11 @@ def canonical_stage(name: str, contract: dict[str, Any], graph: dict[str, Any]) 
 
 def git_commit(root: Path) -> str:
     try:
-        return subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
+        return subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
     except (OSError, subprocess.CalledProcessError):
         return "N/A"
 
@@ -111,7 +115,13 @@ def fingerprint_info(root: Path, graph: dict[str, Any], stage: str) -> dict[str,
     try:
         data = load_json(path)
     except (OSError, json.JSONDecodeError) as exc:
-        return {"name": name, "path": str(path.relative_to(root)), "available": False, "digest": "", "error": str(exc)}
+        return {
+            "name": name,
+            "path": str(path.relative_to(root)),
+            "available": False,
+            "digest": "",
+            "error": str(exc),
+        }
     return {
         "name": name,
         "path": str(path.relative_to(root)),
@@ -121,10 +131,10 @@ def fingerprint_info(root: Path, graph: dict[str, Any], stage: str) -> dict[str,
 
 
 def upstream_fingerprints(root: Path, graph: dict[str, Any], stage: str) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for dep in graph.get("stages", {}).get(stage, {}).get("depends_on", []):
-        result[dep] = fingerprint_info(root, graph, dep)
-    return result
+    return {
+        dep: fingerprint_info(root, graph, dep)
+        for dep in graph.get("stages", {}).get(stage, {}).get("depends_on", [])
+    }
 
 
 def provenance_digest(root: Path) -> str:
@@ -140,25 +150,38 @@ def provenance_digest(root: Path) -> str:
 def expand_pattern(root: Path, pattern: str) -> list[Path]:
     found: list[Path] = []
     for path in sorted(root.glob(pattern), key=lambda p: p.as_posix()):
-        if not path.is_file():
-            continue
-        if not inside(root, path):
+        if not path.is_file() or not inside(root, path):
             continue
         found.append(path.resolve())
     return found
 
 
-def stage_records(root: Path, project: str, contract: dict[str, Any], graph: dict[str, Any], stage: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def stage_records(
+    root: Path,
+    project: str,
+    contract: dict[str, Any],
+    graph: dict[str, Any],
+    stage: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     cfg = contract.get("stages", {}).get(stage)
     if cfg is None:
-        return [], {"stage": stage, "configured": False, "artifact_count": 0, "missing_required": [], "unmatched_optional": []}
+        return [], {
+            "stage": stage,
+            "configured": False,
+            "artifact_count": 0,
+            "missing_required": [],
+            "unmatched_optional": [],
+        }
 
     runtime = load_runtime(root, stage)
     fp = fingerprint_info(root, graph, stage)
     upstream = upstream_fingerprints(root, graph, stage)
     evidence_rel = graph.get("stages", {}).get(stage, {}).get("evidence", "")
-    evidence = read_status(root / evidence_rel) if evidence_rel else {"status": "UNKNOWN", "detail": "no stage evidence configured"}
-
+    evidence = (
+        read_status(root / evidence_rel)
+        if evidence_rel
+        else {"status": "UNKNOWN", "detail": "no stage evidence configured"}
+    )
     by_path: dict[Path, dict[str, Any]] = {}
     missing_required: list[str] = []
     unmatched_optional: list[str] = []
@@ -198,7 +221,7 @@ def stage_records(root: Path, project: str, contract: dict[str, Any], graph: dic
             }
         )
 
-    summary = {
+    return records, {
         "stage": stage,
         "configured": True,
         "artifact_count": len(records),
@@ -210,7 +233,6 @@ def stage_records(root: Path, project: str, contract: dict[str, Any], graph: dic
         "stage_status": evidence.get("status", "UNKNOWN"),
         "status_evidence": evidence_rel,
     }
-    return records, summary
 
 
 def build_manifest(
@@ -227,12 +249,7 @@ def build_manifest(
         raise ValueError(f"unsupported stage graph schema_version={graph.get('schema_version')!r}")
 
     stages = contract.get("stages", {})
-    if requested_stage:
-        stage = canonical_stage(requested_stage, contract, graph)
-        selected = [stage]
-    else:
-        selected = list(stages)
-
+    selected = [canonical_stage(requested_stage, contract, graph)] if requested_stage else list(stages)
     prior_artifacts = [] if not existing else list(existing.get("artifacts", []))
     prior_summaries = {} if not existing else dict(existing.get("stages", {}))
     replace = set(selected)
@@ -257,13 +274,19 @@ def build_manifest(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Build auditable per-artifact lineage from stage runtime/fingerprint evidence.")
+    ap = argparse.ArgumentParser(
+        description="Build auditable per-artifact lineage from stage runtime/fingerprint evidence."
+    )
     ap.add_argument("--root", default=str(ROOT))
     ap.add_argument("--contract", default=str(DEFAULT_CONTRACT))
     ap.add_argument("--graph", default=str(DEFAULT_GRAPH))
     ap.add_argument("--output", default=str(DEFAULT_OUTPUT))
     ap.add_argument("--stage", help="Refresh one stage and preserve manifest entries for other stages.")
-    ap.add_argument("--strict-required", action="store_true", help="Fail when a configured required artifact for the selected scope is absent.")
+    ap.add_argument(
+        "--strict-required",
+        action="store_true",
+        help="Fail when a configured required artifact for the selected scope is absent.",
+    )
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
@@ -285,11 +308,17 @@ def main() -> int:
     canonical = canonical_stage(args.stage, contract, graph) if args.stage else None
     summaries = manifest.get("stages", {})
     scoped = {canonical: summaries.get(canonical, {})} if canonical else summaries
-    missing = [f"{stage}:{pattern}" for stage, summary in scoped.items() for pattern in summary.get("missing_required", [])]
+    missing = [
+        f"{stage}:{pattern}"
+        for stage, summary in scoped.items()
+        for pattern in summary.get("missing_required", [])
+    ]
 
     if canonical and canonical not in contract.get("stages", {}):
         print(f"ARTIFACT_PROVENANCE_STATUS=SKIP stage={canonical} reason=no_contract")
     else:
+        status = "WARNING" if missing else "PASS"
+        print(f"ARTIFACT_PROVENANCE_STATUS={status}")
         print(f"ARTIFACT_PROVENANCE={output}")
         print(f"ARTIFACT_PROVENANCE_ARTIFACTS={len(manifest.get('artifacts', []))}")
         print(f"ARTIFACT_PROVENANCE_MISSING_REQUIRED={len(missing)}")
