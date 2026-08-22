@@ -4,10 +4,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from rebuild_transaction import TransactionError, apply_transaction, restore_transaction
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PLAN = ROOT / "reports" / "summary" / "rebuild_plan.json"
@@ -40,29 +41,8 @@ def load_plan(path: Path) -> dict:
     return data
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="Safely archive stale ASIC stage evidence before executing a rebuild plan.")
-    ap.add_argument("--root", default=str(ROOT))
-    ap.add_argument("--plan", default=str(DEFAULT_PLAN))
-    ap.add_argument("--apply", action="store_true", help="Actually archive evidence. Without this flag the command is a dry run.")
-    ap.add_argument("--archive-database", action="store_true", help="Move an existing database/ aside when the plan requires ICC2 re-initialization.")
-    args = ap.parse_args()
-
-    root = Path(args.root).resolve()
-    plan_path = Path(args.plan)
-    if not plan_path.is_absolute():
-        plan_path = root / plan_path
-    try:
-        plan = load_plan(plan_path)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
-
+def build_actions(root: Path, plan: dict, archive_database: bool) -> tuple[list[dict], Path]:
     selected = [row for row in plan.get("stages", []) if row.get("rebuild_required")]
-    if not selected:
-        print("No rebuild evidence needs invalidation.")
-        return 0
-
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     archive = root / "checkpoints" / "stale_archive" / stamp
     db_archive = root / "runs" / "stale_database_archive" / stamp / "database"
@@ -70,25 +50,74 @@ def main() -> int:
 
     for row in selected:
         rel = row.get("evidence", "")
-        try:
-            src = safe_evidence(root, rel)
-        except ValueError as exc:
-            print(f"ERROR: stage={row.get('stage')} {exc}", file=sys.stderr)
-            return 2
+        if not rel:
+            continue
+        src = safe_evidence(root, rel)
         if src.exists():
-            dst = archive / rel
-            actions.append({"type": "evidence", "stage": row.get("stage"), "source": str(src), "destination": str(dst)})
+            actions.append(
+                {
+                    "type": "evidence",
+                    "stage": row.get("stage"),
+                    "source": str(src),
+                    "destination": str(archive / rel),
+                }
+            )
 
     requires_init = any(row.get("stage") == "icc2_init" for row in selected)
     database = root / "database"
     database_nonempty = database.is_dir() and any(database.iterdir())
     if requires_init and database_nonempty:
-        if not args.archive_database:
-            print("ERROR: rebuild plan includes icc2_init while database/ is non-empty.", file=sys.stderr)
-            print("Re-running create_lib against the existing design library may be unsafe or fail.", file=sys.stderr)
-            print("Re-run with --archive-database to move database/ into a timestamped archive before rebuilding.", file=sys.stderr)
-            return 78
-        actions.append({"type": "database", "stage": "icc2_init", "source": str(database), "destination": str(db_archive)})
+        if not archive_database:
+            raise TransactionError(
+                "rebuild plan includes icc2_init while database/ is non-empty; "
+                "re-run with --archive-database to preserve the existing ICC2 database before rebuilding"
+            )
+        actions.append(
+            {
+                "type": "database",
+                "stage": "icc2_init",
+                "source": str(database),
+                "destination": str(db_archive),
+            }
+        )
+    return actions, archive
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Safely archive/restore stale ASIC stage evidence around a rebuild plan.")
+    ap.add_argument("--root", default=str(ROOT))
+    ap.add_argument("--plan", default=str(DEFAULT_PLAN))
+    ap.add_argument("--apply", action="store_true", help="Apply the invalidation transaction. Default is review-only dry run.")
+    ap.add_argument("--archive-database", action="store_true", help="Preserve a non-empty database/ when ICC2 re-initialization is required.")
+    ap.add_argument("--restore", metavar="TRANSACTION_JSON", help="Restore a previously APPLIED invalidation transaction. Refuses to overwrite new data.")
+    args = ap.parse_args()
+
+    root = Path(args.root).resolve()
+    if args.restore:
+        manifest = Path(args.restore)
+        if not manifest.is_absolute():
+            manifest = root / manifest
+        try:
+            restore_transaction(manifest)
+        except (OSError, ValueError, json.JSONDecodeError, TransactionError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 80
+        print(f"RESTORED_TRANSACTION={manifest.resolve()}")
+        return 0
+
+    plan_path = Path(args.plan)
+    if not plan_path.is_absolute():
+        plan_path = root / plan_path
+    try:
+        plan = load_plan(plan_path)
+        actions, archive = build_actions(root, plan, args.archive_database)
+    except (OSError, ValueError, json.JSONDecodeError, TransactionError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 78
+
+    if not actions:
+        print("No existing rebuild evidence/database needs invalidation.")
+        return 0
 
     mode = "APPLY" if args.apply else "DRY_RUN"
     print(f"REBUILD_INVALIDATION_MODE={mode}")
@@ -97,42 +126,28 @@ def main() -> int:
 
     if not args.apply:
         print("No files were moved. Re-run with --apply after reviewing the plan.")
+        print("Applied transactions can later be restored with --restore <transaction.json> if no new data occupies the original paths.")
         return 0
 
-    for action in actions:
-        src = Path(action["source"])
-        dst = Path(action["destination"])
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        if action["type"] == "database":
-            if dst.exists():
-                print(f"ERROR: database archive destination already exists: {dst}", file=sys.stderr)
-                return 79
-            shutil.move(str(src), str(dst))
-            database.mkdir(parents=True, exist_ok=True)
-        else:
-            if src.exists():
-                shutil.move(str(src), str(dst))
-
-    archive.mkdir(parents=True, exist_ok=True)
-    manifest = archive / "invalidation_manifest.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "created_at": datetime.now().astimezone().isoformat(),
-                "pid": os.getpid(),
-                "source_plan": str(plan_path),
+    try:
+        manifest = apply_transaction(
+            root,
+            actions,
+            metadata={
+                "source_plan": str(plan_path.resolve()),
                 "earliest_rebuild_stage": plan.get("earliest_rebuild_stage"),
                 "execution_targets": plan.get("execution_targets", []),
-                "actions": actions,
+                "archive_root": str(archive),
+                "pid": os.getpid(),
             },
-            indent=2,
         )
-        + "\n",
-        encoding="utf-8",
-    )
+    except TransactionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 79
+
     print(f"INVALIDATION_ARCHIVE={archive}")
-    print(f"INVALIDATION_MANIFEST={manifest}")
+    print(f"TRANSACTION_MANIFEST={manifest}")
+    print("TRANSACTION_STATE=APPLIED")
     return 0
 
 
