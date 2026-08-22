@@ -2,16 +2,64 @@
 set -uo pipefail
 if [[ $# -ne 4 ]]; then echo "Usage: $0 <stage-name> <tool-command> <tcl-script> <log-file>" >&2; exit 2; fi
 stage="$1"; tool="$2"; script="$3"; log="$4"; ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"; slug="$(printf '%s' "$stage" | tr -cs 'A-Za-z0-9_.-' '_')"
-runtime_dir="$ROOT/reports/runtime"; status_dir="$ROOT/reports/status"; lock_root="$ROOT/work/locks"; lock_dir="$lock_root/$slug.lock"; mkdir -p "$(dirname "$log")" "$runtime_dir" "$status_dir" "$lock_root"
+runtime_dir="$ROOT/reports/runtime"; status_dir="$ROOT/reports/status"; lock_root="$ROOT/work/locks"; lock_dir="$lock_root/$slug.lock"; lock_helper="$ROOT/python/stage_locks.py"; mkdir -p "$(dirname "$log")" "$runtime_dir" "$status_dir" "$lock_root"
 [[ -f "$script" ]] || { echo "ERROR: Tcl script not found: $script" >&2; exit 2; }; command -v "$tool" >/dev/null 2>&1 || { echo "ERROR: tool executable not found in PATH: $tool" >&2; exit 127; }
-if ! mkdir "$lock_dir" 2>/dev/null; then echo "ERROR: stage '$stage' is already locked: $lock_dir" >&2; echo "If no flow is running, inspect/remove the stale lock manually." >&2; exit 73; fi
-cleanup_lock(){ rmdir "$lock_dir" 2>/dev/null || true; }; trap cleanup_lock EXIT INT TERM HUP
+
+acquire_stage_lock(){
+  if mkdir "$lock_dir" 2>/dev/null; then return 0; fi
+  echo "WARNING: stage lock already exists: $lock_dir" >&2
+  if [[ -f "$lock_helper" ]]; then
+    set +e
+    lock_info="$(python3 "$lock_helper" check --lock "$lock_dir" 2>&1)"; lock_check_rc=$?
+    set -e
+    printf '%s\n' "$lock_info" >&2
+    lock_state="$(printf '%s\n' "$lock_info" | sed -n 's/^LOCK_STATE=//p' | tail -1)"
+    if [[ $lock_check_rc -eq 0 && "$lock_state" == "STALE" && "${FLOW_RECOVER_STALE_LOCKS:-0}" == "1" ]]; then
+      echo "Recovering proven-stale local lock because FLOW_RECOVER_STALE_LOCKS=1." >&2
+      if python3 "$lock_helper" recover --lock "$lock_dir" >&2 && mkdir "$lock_dir" 2>/dev/null; then
+        return 0
+      fi
+      echo "ERROR: stale lock recovery/reacquisition failed: $lock_dir" >&2
+      return 73
+    fi
+    if [[ "$lock_state" == "STALE" ]]; then
+      echo "The lock is proven stale. Review it, then use './locks.sh recover --stage $slug' or set FLOW_RECOVER_STALE_LOCKS=1." >&2
+    elif [[ "$lock_state" == "FOREIGN_HOST" ]]; then
+      echo "Refusing automatic recovery because the lock belongs to another host." >&2
+    elif [[ "$lock_state" == "ACTIVE" ]]; then
+      echo "Refusing recovery because the recorded owner process is active." >&2
+    else
+      echo "Lock ownership is not provable; inspect manually. Unknown locks are never auto-deleted." >&2
+    fi
+  else
+    echo "Lock inspection helper is unavailable; no automatic recovery is attempted." >&2
+  fi
+  return 73
+}
+
+if ! acquire_stage_lock; then exit 73; fi
+cleanup_lock(){
+  [[ -f "$lock_dir/owner.json" ]] && unlink "$lock_dir/owner.json" 2>/dev/null || true
+  rmdir "$lock_dir" 2>/dev/null || true
+}
+trap cleanup_lock EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+if [[ -f "$lock_helper" ]]; then
+  if ! python3 "$lock_helper" record --lock "$lock_dir" --stage "$stage" --tool "$tool" --script "$script" --flow-run-id "${FLOW_RUN_ID:-UNSET}" --pid "$$" --ppid "$PPID" >/dev/null; then
+    echo "ERROR: failed to record stage-lock ownership metadata; refusing to run an unowned lock." >&2
+    exit 74
+  fi
+fi
+
 json_escape(){ local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\n'/\\n}"; printf '%s' "$s"; }
 start_epoch="$(date +%s)"; start_iso="$(date -Is)"; tool_path="$(command -v "$tool")"; git_commit="N/A"; git_dirty="N/A"
 if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git_commit="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo UNKNOWN)"; if [[ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]]; then git_dirty=true; else git_dirty=false; fi; fi
 extra_args=(); if [[ -n "${EDA_TOOL_ARGS:-}" ]]; then read -r -a extra_args <<< "$EDA_TOOL_ARGS"; fi
 set +e
-{ echo "================================================================"; echo "ASIC FLOW STAGE METADATA"; echo "stage=$stage"; echo "project=${PROJECT_NAME:-MIPS_16}"; echo "top=${TOP_MODULE:-mips_16}"; echo "flow_run_id=${FLOW_RUN_ID:-UNSET}"; echo "start=$start_iso"; echo "hostname=$(hostname)"; echo "user=$(id -un)"; echo "tool=$tool"; echo "tool_path=$tool_path"; echo "script=$(realpath -m "$script")"; echo "project_root=$ROOT"; echo "run_directory=$(pwd)"; echo "git_commit=$git_commit"; echo "git_dirty=$git_dirty"; echo "================================================================"; "$tool" "${extra_args[@]}" -f "$script"; } 2>&1 | tee "$log"
+{ echo "================================================================"; echo "ASIC FLOW STAGE METADATA"; echo "stage=$stage"; echo "project=${PROJECT_NAME:-MIPS_16}"; echo "top=${TOP_MODULE:-mips_16}"; echo "flow_run_id=${FLOW_RUN_ID:-UNSET}"; echo "start=$start_iso"; echo "hostname=$(hostname)"; echo "user=$(id -un)"; echo "tool=$tool"; echo "tool_path=$tool_path"; echo "script=$(realpath -m "$script")"; echo "project_root=$ROOT"; echo "run_directory=$(pwd)"; echo "git_commit=$git_commit"; echo "git_dirty=$git_dirty"; echo "stage_lock=$lock_dir"; echo "stage_lock_owner=$lock_dir/owner.json"; echo "================================================================"; "$tool" "${extra_args[@]}" -f "$script"; } 2>&1 | tee "$log"
 rc=${PIPESTATUS[0]}; set -e
 fingerprint_digest=""; fingerprint_file=""
 if [[ $rc -eq 0 && -f "$ROOT/python/stage_fingerprint.py" && -f "$ROOT/config/fingerprint_policy.json" ]]; then
