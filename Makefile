@@ -15,7 +15,7 @@ CONFIGS := $(wildcard config/*.tcl)
 SDCS := $(wildcard constraints/*.sdc)
 COMMON := $(wildcard scripts/common/*.tcl)
 
-.PHONY: help env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final snapshot dse all check clean clean-results distclean
+.PHONY: help static env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
 
 ENV_STAMP := checkpoints/environment/environment.status
 LINT_STAMP := checkpoints/lint/lint.status
@@ -49,9 +49,13 @@ FINAL_STAMP := final_delivery/MANIFEST.txt
 help:
 	@echo "Complete ASIC flow targets:"
 	@echo "  env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts"
-	@echo "  route postroute closure outputs extract signoff power eco drc gds lvs reports final all"
+	@echo "  route postroute closure outputs extract signoff power eco drc gds lvs reports final verify release all"
+	@echo "  static = license-free repository validation; release = final + verify + snapshot"
 	@echo "Stamps prevent expensive completed stages from rerunning when their inputs are unchanged."
 	@echo "After changing physical technology/floorplan inputs, use 'make distclean' deliberately before rebuilding the ICC2 database."
+
+static:
+	@bash scripts/common/static_validate.sh
 
 env: $(ENV_STAMP)
 $(ENV_STAMP): $(CONFIGS) $(SDCS) $(COMMON) $(RTL_SRCS)
@@ -191,14 +195,19 @@ final: $(FINAL_STAMP)
 $(FINAL_STAMP): $(LVS_STAMP) $(SUMMARY_STAMP) scripts/final/collect_deliverables.sh
 	@bash scripts/final/collect_deliverables.sh
 
+verify: $(FINAL_STAMP) config/stage_contracts.json python/verify_artifacts.py python/report_utils.py
+	@$(PYTHON) python/verify_artifacts.py
+
+release: final verify snapshot
+
 snapshot:
 	@bash scripts/common/create_run_snapshot.sh
 
 dse:
 	@bash scripts/dse/run_dse.sh
 
-check: env
-all: formal presta final
+check: static env
+all: formal presta release
 
 clean:
 	@bash clean.sh clean
