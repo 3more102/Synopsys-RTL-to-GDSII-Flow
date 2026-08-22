@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "description": "Logical dependency DAG used only for stale-checkpoint planning. It does not replace Make dependencies.",
+  "aliases": {
+    "env": "environment", "synth": "synthesis", "formal": "formality", "presta": "prelayout_sta",
+    "init": "icc2_init", "place": "placement", "prects": "pre_cts", "postcts": "post_cts",
+    "postroute": "route_opt", "extract": "extraction", "drc": "drc_prep", "lvs": "lvs_prep"
+  },
+  "stages": {
+    "environment":   {"depends_on": [], "evidence": "checkpoints/environment/environment.status"},
+    "lint":          {"depends_on": ["environment"], "evidence": "checkpoints/lint/lint.status"},
+    "synthesis":     {"depends_on": ["lint"], "evidence": "checkpoints/synthesis/synthesis.status"},
+    "formality":     {"depends_on": ["synthesis"], "evidence": "checkpoints/formal/formal.status"},
+    "prelayout_sta": {"depends_on": ["synthesis"], "evidence": "checkpoints/presta/presta.status"},
+    "icc2_init":     {"depends_on": ["synthesis"], "evidence": "checkpoints/init/init.status"},
+    "floorplan":     {"depends_on": ["icc2_init"], "evidence": "checkpoints/floorplan/floorplan.status"},
+    "powerplan":     {"depends_on": ["floorplan"], "evidence": "checkpoints/powerplan/powerplan.status"},
+    "placement":     {"depends_on": ["powerplan"], "evidence": "checkpoints/placement/placement.status"},
+    "pre_cts":       {"depends_on": ["placement"], "evidence": "checkpoints/pre_cts/pre_cts.status"},
+    "cts":           {"depends_on": ["pre_cts"], "evidence": "checkpoints/post_cts/post_cts.status"},
+    "post_cts":      {"depends_on": ["cts"], "evidence": "checkpoints/post_cts_opt/post_cts_opt.status"},
+    "route":         {"depends_on": ["post_cts"], "evidence": "checkpoints/route/route.status"},
+    "route_opt":     {"depends_on": ["route"], "evidence": "checkpoints/post_route/post_route.status"},
+    "closure":       {"depends_on": ["route_opt"], "evidence": "checkpoints/final_route/final_route.status"},
+    "outputs":       {"depends_on": ["closure"], "evidence": "reports/status/final_outputs.status"},
+    "extraction":    {"depends_on": ["outputs"], "evidence": "checkpoints/extraction/extraction.status"},
+    "signoff":       {"depends_on": ["extraction"], "evidence": "checkpoints/signoff/signoff.status"},
+    "power":         {"depends_on": ["signoff"], "evidence": "reports/status/power.status"},
+    "drc_prep":      {"depends_on": ["power"], "evidence": "reports/status/drc.status"},
+    "gds":           {"depends_on": ["drc_prep"], "evidence": "checkpoints/final/gds.status"},
+    "lvs_prep":      {"depends_on": ["gds"], "evidence": "reports/status/lvs.status"}
+  }
+}
