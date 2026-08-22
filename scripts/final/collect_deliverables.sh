@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="$ROOT/final_delivery"
 PROJECT_NAME="${PROJECT_NAME:-MIPS_16}"
 PYTHON="${PYTHON:-python3}"
-mkdir -p "$OUT"/{timing,power,physical,qor,logs,provenance,floorplan/reports,floorplan/screenshot}
+mkdir -p "$OUT"/{timing,power,physical,qor,history,logs,provenance,floorplan/reports,floorplan/screenshot}
 copy_if(){ [[ -f "$1" ]] && cp -f "$1" "$2" || true; }
 
 # Capture reproducibility evidence immediately before packaging so the release
@@ -22,6 +22,12 @@ if [[ -f "$ROOT/python/generate_dashboard.py" ]]; then
   "$PYTHON" "$ROOT/python/generate_dashboard.py"
 fi
 
+# Build historical trend evidence from archived run snapshots and the current
+# report set. Missing metrics remain N/A; this does not create signoff results.
+if [[ -f "$ROOT/python/index_run_history.py" ]]; then
+  "$PYTHON" "$ROOT/python/index_run_history.py" --include-current
+fi
+
 copy_if "$ROOT/gds/${PROJECT_NAME}.gds" "$OUT/${PROJECT_NAME}.gds"
 copy_if "$ROOT/netlist/${PROJECT_NAME}_postroute.v" "$OUT/${PROJECT_NAME}_postroute.v"
 copy_if "$ROOT/sdf/${PROJECT_NAME}_postroute.sdf" "$OUT/${PROJECT_NAME}_postroute.sdf"
@@ -32,6 +38,7 @@ cp -a "$ROOT/reports/signoff/." "$OUT/timing/" 2>/dev/null || true
 cp -a "$ROOT/reports/power/." "$OUT/power/" 2>/dev/null || true
 cp -a "$ROOT/reports/physical/." "$OUT/physical/" 2>/dev/null || true
 cp -a "$ROOT/reports/summary/." "$OUT/qor/" 2>/dev/null || true
+cp -a "$ROOT/reports/history/." "$OUT/history/" 2>/dev/null || true
 cp -a "$ROOT/reports/provenance/." "$OUT/provenance/" 2>/dev/null || true
 cp -a "$ROOT/reports/floorplan/." "$OUT/floorplan/reports/" 2>/dev/null || true
 cp -a "$ROOT/screenshots/." "$OUT/floorplan/screenshot/" 2>/dev/null || true
