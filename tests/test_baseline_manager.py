@@ -63,9 +63,9 @@ class BaselineManagerTests(unittest.TestCase):
             (first / "marker.txt").write_text("old", encoding="utf-8")
             second = mod.promote(root, baseline_root, "golden", "current", False, True)
             archives = list((baseline_root / ".archive").glob("*_golden"))
-        self.assertTrue(second.is_dir())
-        self.assertEqual(len(archives), 1)
-        self.assertTrue((archives[0] / "marker.txt").is_file())
+            self.assertTrue(second.is_dir())
+            self.assertEqual(len(archives), 1)
+            self.assertTrue((archives[0] / "marker.txt").is_file())
 
 
 if __name__ == "__main__":
