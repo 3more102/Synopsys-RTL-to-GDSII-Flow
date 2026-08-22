@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "description": "Structural MMMC coverage policy. Disabled conceptual scenarios do not fail the base single-corner flow.",
+  "required_purposes_per_enabled_mode": ["setup", "hold"],
+  "require_corner_library_for_enabled_scenario": true,
+  "require_mode_sdc_for_enabled_mode": true,
+  "require_enabled_mode_for_enabled_scenario": true,
+  "expected_rc_by_purpose": {"setup": "max", "hold": "min"},
+  "scenario_report_templates": {
+    "setup": "reports/signoff/scenarios/{scenario}/setup.rpt",
+    "hold": "reports/signoff/scenarios/{scenario}/hold.rpt"
+  }
+}
