@@ -1,247 +1,371 @@
-# MIPS_16 Professional ASIC RTL-to-GDSII Automation Flow
+# Synopsys RTL-to-GDSII Flow
 
-A Tcl-first Synopsys flow for **RTL → synthesis → equivalence → STA → floorplan → PG → placement → CTS → routing → extraction → signoff STA/power → conditional ECO → PV preparation → GDSII → deliverables**.
+A configurable, evidence-driven ASIC implementation framework for:
 
-The repository intentionally separates **project settings**, **technology data**, and **flow methodology**. It does not guess proprietary SAED/foundry paths, routing layers, special cells, runsets, extraction models, DRC/LVS decks, or measured power values.
+**RTL → synthesis → formal equivalence → pre-layout STA → floorplan → power planning → placement → CTS → routing → extraction → signoff STA/power → ECO → physical-verification preparation → GDSII → final delivery**
 
-## Flow
+The default example project is `MIPS_16`, but the flow is structured so project settings, technology data, and methodology remain separate.
+
+> This repository does **not** fabricate PDK paths, metal layers, special-cell names, foundry decks, timing results, power values, DRC/LVS results, or tapeout readiness. Unknown evidence remains `UNKNOWN` or causes an explicit failure when required by policy.
+
+## Tool stack
+
+Core flow:
+
+- Synopsys Design Compiler / DC Ultra
+- Synopsys Formality
+- Synopsys PrimeTime
+- Synopsys IC Compiler II
+- Python 3
+
+Optional integrations:
+
+- PrimeTime PX
+- StarRC
+- IC Validator
+- PrimeRail / RedHawk handoff
+- SpyGlass CDC/RDC hooks
+- VCS gate-level simulation hooks
+- DFT/TestMAX integration templates
+
+## Architecture
 
 ```text
-RTL -> RTL sanity -> DC synthesis -> Formality + pre-layout PrimeTime
- -> ICC2 init -> floorplan -> power plan -> placement -> pre-CTS -> CTS
- -> post-CTS opt -> route -> route_opt -> closure -> final netlist/SDF
- -> SPEF extraction -> PrimeTime signoff -> PrimeTime PX power
- -> optional ECO -> DRC/LVS/IR-EM preparation -> GDSII -> final delivery
+RTL
+ │
+ ├─ RTL sanity / lint hooks
+ │
+ ├─ Design Compiler synthesis
+ │     └─ mapped Verilog / DDC / SDC / reports
+ │
+ ├─ Formality equivalence
+ ├─ PrimeTime pre-layout STA
+ │
+ └─ ICC2
+       ├─ NDM design initialization
+       ├─ floorplan
+       ├─ tap/endcap hooks
+       ├─ power ring / mesh / rails / macro PG
+       ├─ placement
+       ├─ spare/tie-cell hooks
+       ├─ pre-CTS optimization
+       ├─ CTS
+       ├─ post-CTS optimization
+       ├─ routing
+       ├─ route optimization
+       ├─ iterative closure
+       ├─ filler/decap hooks
+       └─ final netlist / SDF / GDS
+              │
+              ├─ parasitic extraction / StarRC handoff
+              ├─ PrimeTime extracted signoff
+              ├─ PrimeTime PX power
+              ├─ measured ECO acceptance/rejection
+              └─ final deliverables + manifests + checksums
 ```
 
-## First configuration
-
-1. Copy `.env.example` to `.env.local` and edit **only real machine/PDK values**. `.env.local` is ignored by Git, and `source setup.sh` loads it automatically.
-2. Put Verilog/SystemVerilog under `rtl/`, or configure `RTL_FILELIST` for an external file list.
-3. Configure at least the logical library and reference NDM before `make env`:
+## First setup
 
 ```bash
-export TARGET_LIBRARY=/absolute/path/to/saed90nm_max_hvt.db
-export STD_CELL_NDM=/absolute/path/to/saed90nm_hvt_mips.ndm
-export TECH_FILE=/absolute/path/to/technology.tf        # optional if reference NDM embeds technology
-export TLU_PLUS_MAX=/absolute/path/to/max.tluplus       # required for a qualified RC setup
-export TLU_PLUS_MIN=/absolute/path/to/min.tluplus
-export TLU_PLUS_MAP=/absolute/path/to/layer.map
-export GDS_LAYER_MAP=/absolute/path/to/gdsout.map       # required before GDS stream-out
-```
-
-4. For PG creation, set actual PDK-valid layers. Do **not** copy layer names from another technology:
-
-```bash
-export PG_RING_H_LAYER=<actual layer>
-export PG_RING_V_LAYER=<actual layer>
-export PG_MESH_H_LAYER=<actual layer>
-export PG_MESH_V_LAYER=<actual layer>
-export PG_STD_CELL_RAIL_LAYER=<actual std-cell rail layer>
-```
-
-5. Review `config/project_config.tcl`: clock period, I/O delay, uncertainty, load, design-rule constraints, utilization, aspect ratio and core offset.
-6. Review `constraints/*.sdc`. False paths/multicycle paths are deliberately absent until justified.
-
-## Tool requirements
-
-Required for the full default path:
-
-- Synopsys Design Compiler / DC Ultra: synthesis and generic RTL structural sanity checks.
-- Synopsys Formality: RTL-to-synth equivalence.
-- Synopsys PrimeTime: pre/post-layout STA.
-- Synopsys IC Compiler II: NDM physical implementation and stream-out.
-- Python 3: report parsing and summaries.
-
-Optional/licensed extensions:
-
-- PrimeTime PX for richer power analysis.
-- StarRC for golden parasitic extraction when native ICC2 SPEF export is not sufficient/available.
-- IC Validator for foundry DRC/LVS.
-- PrimeRail/RedHawk for IR-drop/EM.
-- SpyGlass or equivalent for dedicated lint/CDC/RDC.
-- TestMAX/DFT Compiler for scan/ATPG.
-
-## Run commands
-
-```bash
+cp .env.example .env.local
 source setup.sh
 ```
-Sets default executable names and `ASIC_PROJECT_ROOT`; environment variables remain overrideable.
+
+Set only real machine/PDK values, for example:
+
+```bash
+export TARGET_LIBRARY=/real/path/saed90nm_max_hvt.db
+export STD_CELL_NDM=/real/path/saed90nm_hvt_mips.ndm
+export TECH_FILE=/real/path/technology.tf
+export TLU_PLUS_MAX=/real/path/max.tluplus
+export TLU_PLUS_MIN=/real/path/min.tluplus
+export TLU_PLUS_MAP=/real/path/layer.map
+export GDS_LAYER_MAP=/real/path/gdsout.map
+```
+
+Power-grid layer names are intentionally not guessed:
+
+```bash
+export PG_RING_H_LAYER=<real layer>
+export PG_RING_V_LAYER=<real layer>
+export PG_MESH_H_LAYER=<real layer>
+export PG_MESH_V_LAYER=<real layer>
+export PG_STD_CELL_RAIL_LAYER=<real layer>
+```
+
+Then validate configuration before consuming EDA licenses:
+
+```bash
+make static
+make config-check
+```
+
+`make static` performs license-free Bash, Python, JSON, Tcl/SDC, Makefile, configuration, and unit-test validation. GitHub Actions runs the same static validation on pushes and pull requests.
+
+## Main flow
 
 ```bash
 make env
-```
-Checks RTL, SDC, target `.db`, NDM reference library, configured optional technology inputs, writable directories, and creates a PASS/UNKNOWN-aware environment record.
-
-```bash
 make lint
-```
-Analyzes/elaborates/links RTL in Design Compiler and emits structural reports. This is not a replacement for dedicated CDC/RDC.
-
-```bash
 make synth
-```
-Runs DC Ultra synthesis, applies SDC, writes mapped Verilog/DDC/SDC/SDF when supported, and emits timing/area/power/QoR reports.
-
-```bash
 make formal
-```
-Runs Formality reference RTL versus implementation netlist. The target fails with nonzero status when `verify` does not return equivalence.
-
-```bash
 make presta
-```
-Runs PrimeTime max/min analysis on the synthesized netlist before physical parasitics.
-
-```bash
 make init
-```
-Creates the ICC2 NDM design library, imports the synthesized netlist, links the block, and loads SDC.
-
-```bash
 make floorplan
-```
-Creates a utilization/aspect-ratio based floorplan (or explicit die boundary when enabled), reports physical/timing state, and saves the `floorplan` block.
-
-```bash
-make floorplan-screenshot
-```
-Optional GUI target. Opens the saved floorplan, zooms to fit, and writes `screenshots/MIPS_16_floorplan.png` when a valid `DISPLAY` and ICC2 GUI commands are available. It is deliberately not part of `make all` because headless runs may not have a display.
-
-```bash
 make powerplan
-```
-Connects PG nets and compiles pattern-based core ring, mesh, standard-cell rails and macro PG connections using only configured layer names. It intentionally fails when a required real PDK layer variable is empty.
-
-```bash
 make place
-```
-Runs ICC2 `place_opt`, legality, congestion and QoR checks.
-
-```bash
 make prects
-```
-Performs an incremental placement/optimization pass before clock tree synthesis.
-
-```bash
 make cts
-```
-Runs ICC2 `clock_opt`, then records clock/timing/QoR evidence.
-
-```bash
 make postcts
-```
-Runs post-CTS optimization with the implemented clock tree present.
-
-```bash
 make route
 make postroute
 make closure
-```
-Runs `route_auto`, `route_opt`, then bounded iterative post-route optimization. Closure is **not** declared only because the commands completed; parsed WNS/TNS/hold/route evidence must meet targets.
-
-```bash
 make outputs
 make extract
-```
-Writes final routed netlist/SDF/SDC, then generates SPEF using ICC2 `write_parasitics` when supported. For an external golden extraction flow, configure a PDK-qualified StarRC command file and run `scripts/extraction/run_starrc.sh`; the repository never invents an extraction deck.
-
-```bash
 make signoff
-```
-Runs PrimeTime on final netlist + SDC + extracted SPEF with propagated clocks, setup/hold and constraint reports.
-
-```bash
 make power
-```
-Runs vectorless post-layout power estimation when the PrimeTime PX features are available. Results are explicitly labeled as estimates.
-
-```bash
-make eco
-```
-Optional conditional ECO path. It snapshots setup/hold metrics, runs routed optimization only when needed, compares before/after metrics, and promotes an ECO block only when it does not regress the opposite timing class.
-
-```bash
 make drc
 make gds
 make lvs
-```
-Runs ICC2 in-design route/PG checks, streams GDS using the configured layer map, and prepares LVS inputs/status. Foundry DRC/LVS remain `UNKNOWN` unless qualified decks are actually run.
-
-```bash
 make reports
 make final
 ```
-Builds CSV/JSON/Markdown QoR summaries and collects final deliverables/checksums/manifests.
+
+Or:
 
 ```bash
 make all
 ```
-Builds the complete default flow. File-based stamps prevent already completed expensive stages from rerunning when their tracked inputs are unchanged.
 
-## Optional analysis hooks
+The Makefile uses stage stamps so completed expensive stages are not rerun when tracked inputs are unchanged.
 
-- `make saif-power` / `make vcd-power`: activity-based PrimeTime PX power when activity files are configured.
-- `scripts/cdc/run_spyglass_cdc.sh` and `scripts/rdc/run_spyglass_rdc.sh`: dedicated SpyGlass wrappers requiring a reviewed project and installed methodology goal.
-- `scripts/gls/run_vcs_gls.sh`: optional post-route gate-level timing simulation hook.
-- `scripts/dft/`: scan/DFT integration template; disabled by default.
-- `scripts/common/mmmc_setup.tcl`: real ICC2 mode/corner/scenario infrastructure; scenarios stay disabled until actual PVT library data is supplied.
-- `make dse`: controlled PPA design-space sweep infrastructure; it is never launched by the default flow.
-
-## Restart / resume
+## Flow runner
 
 ```bash
-./run_flow.sh --resume placement
+./run_flow.sh --list
+./run_flow.sh --from placement --to route
 ./run_flow.sh --resume cts
-./run_flow.sh --to route
+./run_flow.sh --from route --to signoff --dry-run
 ```
 
-The runner uses Make targets and their checkpoint stamps. After changing a physical technology/floorplan input that invalidates the NDM database, use `make distclean` deliberately and rebuild; the flow never silently destroys a design library.
+Every invocation receives a `FLOW_RUN_ID`. Each EDA stage is protected by a per-stage lock to reduce accidental concurrent database writers.
 
-## Cleaning policy
+The stage launcher writes:
+
+```text
+reports/runtime/<stage>_<timestamp>.json
+reports/runtime/<stage>.latest.json
+reports/status/<stage>_runner.status
+```
+
+Runtime evidence includes the executable path, Tcl script, Git commit/dirty state, start/end time, duration, log path, and process exit code.
+
+A runner `PASS` only proves the tool process returned successfully. It does **not** override engineering timing/formal/physical status.
+
+## Quality gates
+
+### 1. Static validation
+
+```bash
+make static
+```
+
+Includes parser unit tests and license-free configuration sanity checks.
+
+### 2. Release verification
+
+```bash
+make verify
+```
+
+The machine-readable contract in `config/stage_contracts.json` checks required final artifacts and evidence such as:
+
+- post-route netlist
+- final SDC
+- SPEF
+- GDS
+- synthesis status
+- Formality equivalence
+- extraction status
+- setup STA
+- hold STA
+- GDS generation
+
+To require SDF too:
+
+```bash
+REQUIRE_SDF=1 make verify
+```
+
+To require qualified DRC/LVS `PASS` evidence:
+
+```bash
+STRICT_SIGNOFF=1 make verify
+```
+
+`FLOW_RELEASE PASS` is deliberately **not** synonymous with foundry tapeout signoff. `STRICT_SIGNOFF=1` should fail until real qualified DRC/LVS integrations produce valid evidence.
+
+### 3. QoR regression gate
+
+After saving a known-good QoR summary:
+
+```bash
+QOR_BASELINE=/path/to/golden/qor_summary.json make qor-gate
+```
+
+The policy is explicit in `config/qor_policy.json`.
+
+Default behavior includes:
+
+- signoff WNS must remain non-negative and not regress
+- signoff TNS must remain non-negative and not regress
+- worst hold slack must remain non-negative and not regress
+- post-route timing regressions are detected when metrics exist
+- optional area/power/congestion/runtime growth is reported according to configured policy
+- missing required evidence fails; optional missing metrics become `SKIP`, never zero
+
+Outputs:
+
+```text
+reports/summary/qor_regression.json
+reports/summary/qor_regression.md
+```
+
+## QoR reporting
+
+The summary infrastructure records only values it can parse from actual reports:
+
+```text
+Stage
+WNS
+TNS
+Setup Violations
+Worst Hold Slack
+Hold Violations
+Area
+Utilization
+Cell Count
+Buffer Count
+Inverter Count
+Power
+Congestion
+DRC
+Runtime
+Status
+```
+
+Missing evidence is reported as `N/A` rather than fabricated.
+
+Generated summaries:
+
+```text
+reports/summary/qor_summary.csv
+reports/summary/qor_summary.json
+reports/summary/qor_summary.md
+```
+
+## ECO methodology
+
+The ECO path is measurement-driven:
+
+1. capture pre-ECO setup/hold metrics;
+2. create a candidate routed ECO;
+3. legalize and route changed logic;
+4. update timing;
+5. compare before/after QoR;
+6. accept only a non-regressing candidate;
+7. otherwise keep the previous active block.
+
+The flow never assumes an ECO helped merely because an optimization command completed.
+
+## Physical verification
+
+ICC2 in-design route/PG checks can run without a foundry signoff deck.
+
+Foundry DRC/LVS status remains `UNKNOWN` unless qualified runsets are configured and actually executed. IR-drop/EM integration is preparation/handoff only unless a real supported analysis tool/model is available.
+
+## Reproducibility
+
+The project records:
+
+- Git commit and dirty state
+- project/top
+- executable paths
+- run ID
+- stage runtime
+- RTL/SDC/config hashes in run manifests where available
+- logs and reports
+- snapshots
+- final SHA256 checksums
+
+Use:
+
+```bash
+make snapshot
+make release
+```
+
+`make release` performs final collection, release verification, and snapshot creation.
+
+## Important outputs
+
+```text
+results/synthesis/
+database/
+checkpoints/
+logs/
+reports/
+netlist/
+spef/
+extracted/
+sdf/
+gds/
+final_delivery/
+```
+
+Expected final deliverables include, when successfully generated by the actual tool/PDK environment:
+
+```text
+MIPS_16.gds
+MIPS_16_postroute.v
+MIPS_16_postroute.sdf
+MIPS_16_postroute.spef
+MIPS_16_final.sdc
+FINAL_SUMMARY.md
+MANIFEST.txt
+checksums.txt
+```
+
+## Cleaning and restart safety
 
 ```bash
 make clean
 ```
-Removes temporary `work/` contents only.
+
+Removes temporary work only.
 
 ```bash
 make clean-results
 ```
-Removes reports, logs and the assembled `final_delivery/` package while deliberately preserving implementation databases/artifacts/checkpoints so resume stamps do not become stale.
+
+Removes reports/logs/final assembled output while preserving implementation databases needed for resume semantics.
 
 ```bash
 make distclean
 ```
-Deliberately removes generated implementation databases, checkpoints and generated artifacts in addition to reports. Source RTL, constraints, configuration and scripts are protected by path validation.
 
-## Outputs
+Deliberately removes generated implementation databases, checkpoints, and artifacts. Source RTL, constraints, configuration, and technology inputs are protected by path checks.
 
-- `logs/`: timestamped tool logs.
-- `reports/`: stage reports plus `reports/status/*.status`.
-- `results/synthesis/`: mapped netlist, DDC, SDC, optional synthesis SDF/SVF.
-- `database/`: ICC2 design library.
-- `checkpoints/`: stage marker files plus active ECO block selection.
-- `netlist/`: post-route Verilog.
-- `spef/`, `extracted/`: parasitic exchange files.
-- `sdf/`: timing back-annotation.
-- `gds/`: GDSII.
-- `final_delivery/`: collected delivery set, manifest, checksums and floorplan submission package.
+## Documentation
 
-## Debugging
+- `docs/QUALITY_GATES.md` — execution vs engineering evidence vs foundry signoff
+- `docs/QOR_REGRESSION.md` — baseline QoR gating
+- `docs/COMMANDS.md` — tool command guide
+- `docs/ASIC_FILE_FORMATS.md` — SDC/SDF/SPEF/SPF/NDM/GDS and other formats
+- `docs/ASIC_FLOW_CHECKLIST.md` — RTL-to-GDSII checklist
+- `docs/DEBUGGING.md` — timing/congestion/clock/DRC debugging
+- `docs/FLOW_DIAGRAM.txt` — complete stage flow
 
-Use `scripts/debug/` for setup, hold, clock, congestion, routing/PG DRC, fanout and transition/capacitance reports. These scripts are report-only and do not alter the design.
+## Important limitation
 
-Common failure classes:
-
-- **Unresolved RTL/library references**: inspect `reports/lint/check_design*.rpt` and `reports/synthesis/check_design*.rpt`.
-- **Bad SDC / unconstrained paths**: inspect `check_timing.rpt`, clocks, exceptions and PrimeTime coverage.
-- **ICC2 link failure**: check NDM attachment and mapped cell names.
-- **PG failure**: verify actual layer names, PG pin patterns and the technology's via/layer rules.
-- **Placement/routing failure**: inspect legality/congestion/check_routes and reduce utilization or repair floorplan constraints rather than blindly adding optimizations.
-- **Signoff mismatch**: verify final netlist, exact SDC, SPEF annotation and library corner consistency.
-- **GDS failure**: provide a valid layer map; no map is guessed.
-- **DRC/LVS UNKNOWN**: configure and execute foundry-qualified runsets/decks.
-
-See `docs/COMMANDS.md`, `docs/ASIC_FILE_FORMATS.md`, `docs/ASIC_FLOW_CHECKLIST.md`, and `docs/FILE_GUIDE.md`.
+GitHub CI validates repository logic that does not require commercial EDA licenses or proprietary PDK data. It does **not** run Design Compiler, Formality, ICC2, PrimeTime, StarRC, or foundry DRC/LVS in GitHub-hosted CI. Real QoR and signoff status must come from an appropriately licensed implementation environment using the intended technology data.
