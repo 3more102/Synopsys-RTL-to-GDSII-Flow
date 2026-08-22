@@ -11,6 +11,13 @@ copy_if(){ [[ -f "$1" ]] && cp -f "$1" "$2" || true; }
 # contains the identity of the inputs/methodology/technology used at delivery time.
 "$PYTHON" "$ROOT/python/build_provenance.py"
 
+# Refresh per-artifact lineage after run provenance exists. The normal final
+# package records missing required artifacts as WARNING evidence rather than
+# inventing them; release/CI can invoke --strict-required as an explicit gate.
+if [[ -f "$ROOT/python/build_artifact_provenance.py" ]]; then
+  "$PYTHON" "$ROOT/python/build_artifact_provenance.py"
+fi
+
 # Refresh advisory rebuild evidence and the self-contained dashboard before
 # copying reports into final_delivery. The rebuild planner is evidence-only and
 # never launches a licensed EDA tool. A stale plan is recorded rather than hidden;

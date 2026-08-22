@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "description": "Stage-to-artifact lineage rules. Patterns are repository-relative and support ${PROJECT_NAME}. Missing optional patterns never imply failure; required patterns are enforced only when strict artifact provenance is requested.",
+  "aliases": {
+    "synth": "synthesis",
+    "formal": "formality",
+    "presta": "prelayout_sta",
+    "init": "icc2_init",
+    "physical-cells": "physical_only",
+    "place": "placement",
+    "tie-cells": "tie_cells",
+    "prects": "pre_cts",
+    "postcts": "post_cts",
+    "postroute": "route_opt",
+    "extract": "extraction",
+    "drc": "drc_prep",
+    "lvs": "lvs_prep"
+  },
+  "stages": {
+    "synthesis": {
+      "required": [
+        "results/synthesis/${PROJECT_NAME}_syn.v",
+        "results/synthesis/${PROJECT_NAME}_syn.sdc"
+      ],
+      "optional": [
+        "results/synthesis/${PROJECT_NAME}_syn.ddc",
+        "results/synthesis/${PROJECT_NAME}_syn.sdf",
+        "results/synthesis/*.svf",
+        "reports/synthesis/*.rpt"
+      ]
+    },
+    "formality": {
+      "optional": ["reports/formal/*.rpt", "reports/formality/*.rpt"]
+    },
+    "prelayout_sta": {
+      "optional": ["reports/prelayout_sta/*.rpt", "reports/presta/*.rpt"]
+    },
+    "icc2_init": {
+      "optional": ["reports/init/*.rpt", "reports/icc2_init/*.rpt"]
+    },
+    "floorplan": {
+      "optional": ["reports/floorplan/*.rpt", "screenshots/*floorplan*.png"]
+    },
+    "physical_only": {
+      "optional": ["reports/physical_only/*.rpt"]
+    },
+    "powerplan": {
+      "optional": ["reports/powerplan/*.rpt"]
+    },
+    "placement": {
+      "optional": ["reports/placement/*.rpt"]
+    },
+    "spares": {
+      "optional": ["reports/spares/*.rpt"]
+    },
+    "tie_cells": {
+      "optional": ["reports/tie_cells/*.rpt"]
+    },
+    "pre_cts": {
+      "optional": ["reports/pre_cts/*.rpt"]
+    },
+    "cts": {
+      "optional": ["reports/cts/*.rpt", "reports/post_cts/*.rpt"]
+    },
+    "post_cts": {
+      "optional": ["reports/post_cts_opt/*.rpt"]
+    },
+    "route": {
+      "optional": ["reports/route/*.rpt"]
+    },
+    "route_opt": {
+      "optional": ["reports/post_route/*.rpt"]
+    },
+    "closure": {
+      "optional": ["reports/closure/*.rpt", "reports/final_route/*.rpt"]
+    },
+    "fillers": {
+      "optional": ["reports/fillers/*.rpt"]
+    },
+    "outputs": {
+      "required": [
+        "netlist/${PROJECT_NAME}_postroute.v",
+        "results/final/${PROJECT_NAME}_final.sdc"
+      ],
+      "optional": [
+        "sdf/${PROJECT_NAME}_postroute.sdf",
+        "results/final/*"
+      ]
+    },
+    "extraction": {
+      "required": ["spef/${PROJECT_NAME}_postroute.spef"],
+      "optional": ["extracted/*", "spef/*", "reports/extraction/*.rpt"]
+    },
+    "signoff": {
+      "optional": ["reports/signoff/*.rpt"]
+    },
+    "power": {
+      "optional": ["reports/power/*.rpt"]
+    },
+    "drc_prep": {
+      "optional": ["reports/physical/*drc*", "reports/physical_verification/*drc*"]
+    },
+    "gds": {
+      "required": ["gds/${PROJECT_NAME}.gds"],
+      "optional": ["gds/*.oas", "gds/*.oasis", "reports/gds/*.rpt"]
+    },
+    "lvs_prep": {
+      "optional": ["reports/physical/*lvs*", "reports/physical_verification/*lvs*"]
+    }
+  }
+}
