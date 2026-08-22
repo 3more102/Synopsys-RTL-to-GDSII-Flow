@@ -1,0 +1,12 @@
+# deterministic public test fixture
+DRC violations : 0
+Total Wire Length : 1425 mm
+Via Count : 91,234
+Short Count : 0
+Open Count : 0
+Global Route Congestion : 3.2 %
+Horizontal Overflow : 1.2 %
+Vertical Overflow : 0.7 %
+Max Overflow : 0.9 %
+Total Overflow : 1.9 %
+Congested Bins : 18

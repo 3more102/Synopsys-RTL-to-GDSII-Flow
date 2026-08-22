@@ -1,0 +1,6 @@
+# deterministic conflicting summary fixture
+Scenario : FUNC_SS
+WNS : -0.050 ns
+TNS : -0.800 ns
+No. of Violating Paths : 8
+WNS : 0.120 ns

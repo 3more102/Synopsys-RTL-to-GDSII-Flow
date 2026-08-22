@@ -1,0 +1,13 @@
+# deterministic public test fixture
+Scenario : FUNC_SS
+Mode : FUNC
+Corner : SS
+WNS : -0.050 ns
+TNS : -0.800 ns
+No. of Violating Paths : 8
+Scenario : FUNC_FF
+Mode : FUNC
+Corner : FF
+WNS : 0.120 ns
+TNS : 0.000 ns
+No. of Violating Paths : 0

@@ -1,0 +1,13 @@
+# deterministic public test fixture
+Total cell area : 1.218e6 um2
+Combinational area : 700,000 um2
+Sequential area : 318000 um2
+Macro area : 0.200 mm2
+Buffer/Inverter area : 42,500 um2
+Number of cells : 18,420
+Combinational Cell Count : 12,600
+Sequential Cell Count : 5,816
+Macro Count : 4
+Buffer Count : 812
+Inverter Count : 601
+Utilization Ratio : 68.4 %
