@@ -128,12 +128,22 @@ def load_owner(lock_dir: Path) -> tuple[dict[str, Any] | None, str]:
 
 
 def inspect_lock(lock_dir: Path) -> dict[str, Any]:
+    """Classify lock ownership conservatively.
+
+    STALE is reserved for a condition that proves processes from the recorded
+    owner cannot still exist: a different boot identity on the same host.
+    A dead/reused shell PID during the same boot remains UNKNOWN because an EDA
+    child could have survived its parent. UNKNOWN requires explicit engineer
+    action and is never auto-recovered by run_stage.sh.
+    """
     lock_dir = lock_dir.resolve()
+    local_host = socket.gethostname()
+    local_boot = boot_id()
     base = {
         "lock": str(lock_dir),
         "checked_at": datetime.now(timezone.utc).isoformat(),
-        "local_hostname": socket.gethostname(),
-        "local_boot_id": boot_id(),
+        "local_hostname": local_host,
+        "local_boot_id": local_boot,
     }
     if not lock_dir.exists():
         return {**base, "state": "FREE", "reason": "lock directory absent", "owner": None}
@@ -147,21 +157,20 @@ def inspect_lock(lock_dir: Path) -> dict[str, Any]:
     owner_host = str(owner.get("hostname", ""))
     if not owner_host:
         return {**base, "state": "UNKNOWN", "reason": "owner hostname missing", "owner": owner}
-    if owner_host != socket.gethostname():
+    if owner_host != local_host:
         return {
             **base,
             "state": "FOREIGN_HOST",
-            "reason": f"lock belongs to host {owner_host}; local host is {socket.gethostname()}",
+            "reason": f"lock belongs to host {owner_host}; local host is {local_host}",
             "owner": owner,
         }
 
     owner_boot = str(owner.get("boot_id", ""))
-    local_boot = boot_id()
     if owner_boot and local_boot and owner_boot != local_boot:
         return {
             **base,
             "state": "STALE",
-            "reason": "same host name but boot identity changed; owner process cannot still be the recorded process",
+            "reason": "same host name but boot identity changed; no process from the recorded boot can still be running",
             "owner": owner,
         }
 
@@ -172,15 +181,20 @@ def inspect_lock(lock_dir: Path) -> dict[str, Any]:
     if owner_pid <= 0:
         return {**base, "state": "UNKNOWN", "reason": "owner PID is missing/non-positive", "owner": owner}
     if not pid_alive(owner_pid):
-        return {**base, "state": "STALE", "reason": f"owner PID {owner_pid} is not alive", "owner": owner}
+        return {
+            **base,
+            "state": "UNKNOWN",
+            "reason": f"runner PID {owner_pid} is not alive during the same boot; an EDA child may have survived",
+            "owner": owner,
+        }
 
     recorded_start = str(owner.get("process_start_ticks", ""))
     current_start = process_start_ticks(owner_pid)
     if recorded_start and current_start and recorded_start != current_start:
         return {
             **base,
-            "state": "STALE",
-            "reason": f"PID {owner_pid} was reused; process start identity differs",
+            "state": "UNKNOWN",
+            "reason": f"PID {owner_pid} was reused during the same boot; child-process state is not proven",
             "owner": owner,
         }
 
@@ -197,7 +211,11 @@ def archive_destination(archive_root: Path, lock_dir: Path) -> Path:
     return archive_root / f"{stamp}_{lock_dir.name}"
 
 
-def recover_stale(lock_dir: Path, archive_root: Path = DEFAULT_ARCHIVE_ROOT) -> Path:
+def recover_lock(
+    lock_dir: Path,
+    archive_root: Path = DEFAULT_ARCHIVE_ROOT,
+    allow_unknown: bool = False,
+) -> Path:
     lock_dir = lock_dir.resolve()
     archive_root = archive_root.resolve()
     if not inside(DEFAULT_LOCK_ROOT, lock_dir):
@@ -205,8 +223,12 @@ def recover_stale(lock_dir: Path, archive_root: Path = DEFAULT_ARCHIVE_ROOT) -> 
     if not inside(ROOT / "work", archive_root):
         raise ValueError(f"archive root must stay under {ROOT / 'work'}: {archive_root}")
     info = inspect_lock(lock_dir)
-    if info["state"] != "STALE":
-        raise RuntimeError(f"lock is not safely recoverable: state={info['state']} reason={info['reason']}")
+    state = info["state"]
+    permitted = state == "STALE" or (allow_unknown and state == "UNKNOWN")
+    if not permitted:
+        raise RuntimeError(f"lock is not recoverable under requested policy: state={state} reason={info['reason']}")
+    if state == "UNKNOWN" and not allow_unknown:
+        raise RuntimeError("UNKNOWN locks require explicit --force-unknown")
     archive_root.mkdir(parents=True, exist_ok=True)
     destination = archive_destination(archive_root, lock_dir)
     if destination.exists():
@@ -220,6 +242,7 @@ def recover_stale(lock_dir: Path, archive_root: Path = DEFAULT_ARCHIVE_ROOT) -> 
             "original_lock": str(lock_dir),
             "inspection": info,
             "recovery": "archived_not_deleted",
+            "forced_unknown": bool(state == "UNKNOWN" and allow_unknown),
         },
     )
     return destination
@@ -256,7 +279,7 @@ def main() -> int:
     record.add_argument("--tool", default="")
     record.add_argument("--script", default="")
     record.add_argument("--flow-run-id", default="")
-    record.add_argument("--pid", type=int, default=None, help="Owning runner PID; defaults to this helper process only for manual use.")
+    record.add_argument("--pid", type=int, default=None, help="Owning runner PID; defaults to helper PID only for manual use.")
     record.add_argument("--ppid", type=int, default=None)
 
     check = sub.add_parser("check")
@@ -270,6 +293,11 @@ def main() -> int:
     recover = sub.add_parser("recover")
     recover.add_argument("--lock", required=True)
     recover.add_argument("--archive-root", default=str(DEFAULT_ARCHIVE_ROOT))
+    recover.add_argument(
+        "--force-unknown",
+        action="store_true",
+        help="Explicitly archive an UNKNOWN local lock after engineer review. ACTIVE and FOREIGN_HOST locks remain protected.",
+    )
 
     args = ap.parse_args()
     try:
@@ -299,7 +327,11 @@ def main() -> int:
                     print(f"{Path(info['lock']).name}: {info['state']} - {info['reason']}")
             return 0
         if args.command == "recover":
-            destination = recover_stale(Path(args.lock), Path(args.archive_root))
+            destination = recover_lock(
+                Path(args.lock),
+                Path(args.archive_root),
+                allow_unknown=args.force_unknown,
+            )
             print(f"STALE_LOCK_ARCHIVE={destination}")
             print("LOCK_RECOVERY=ARCHIVED")
             return 0
