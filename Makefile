@@ -15,7 +15,7 @@ CONFIGS := $(wildcard config/*.tcl)
 SDCS := $(wildcard constraints/*.sdc)
 COMMON := $(wildcard scripts/common/*.tcl)
 
-.PHONY: help static config-check test-parsers sdc-audit capabilities doctor fingerprint freshness qor-gate env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
+.PHONY: help static config-check test-parsers sdc-audit capabilities doctor fingerprint freshness provenance compare-provenance release-manifest qor-gate env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts route postroute closure outputs extract signoff power saif-power vcd-power physical-cells spares tie-cells fillers eco eco-analyze setup-eco hold-eco drc-eco pv drc lvs ir-em gds reports summary final verify release snapshot dse all check clean clean-results distclean
 
 ENV_STAMP := checkpoints/environment/environment.status
 LINT_STAMP := checkpoints/lint/lint.status
@@ -50,17 +50,20 @@ help:
 	@echo "Complete ASIC flow targets:"
 	@echo "  env lint synth formal presta init floorplan floorplan-screenshot powerplan place prects cts postcts"
 	@echo "  route postroute closure outputs extract signoff power eco drc gds lvs reports final verify release all"
-	@echo "Quality/safety targets:"
-	@echo "  static         = license-free repository validation + unit tests + SDC audit"
-	@echo "  config-check   = Tcl configuration sanity validation"
-	@echo "  test-parsers   = Python parser/quality-gate unit tests"
-	@echo "  sdc-audit      = static heuristic timing-exception safety audit"
-	@echo "  capabilities   = advisory installed Synopsys command compatibility probe"
-	@echo "  doctor         = static checks + capability probe before expensive runs"
-	@echo "  fingerprint    = capture input fingerprint; use STAGE=synth"
-	@echo "  freshness      = verify saved fingerprint; use STAGE=synth [DETAILS=1]"
-	@echo "  qor-gate       = compare current QoR against QOR_BASELINE using config/qor_policy.json"
-	@echo "  release        = final + verify + snapshot"
+	@echo "Quality/safety/reproducibility targets:"
+	@echo "  static             = license-free repository validation + unit tests + SDC audit"
+	@echo "  config-check       = Tcl configuration sanity validation"
+	@echo "  test-parsers       = Python parser/quality-gate unit tests"
+	@echo "  sdc-audit          = static heuristic timing-exception safety audit"
+	@echo "  capabilities       = advisory installed Synopsys command compatibility probe"
+	@echo "  doctor             = static checks + capability probe before expensive runs"
+	@echo "  fingerprint        = capture stage input fingerprint; use STAGE=synth"
+	@echo "  freshness          = verify saved stage fingerprint; use STAGE=synth [DETAILS=1]"
+	@echo "  provenance         = build design/methodology/technology/execution identity"
+	@echo "  compare-provenance = compare with PROVENANCE_BASELINE; STRICT_EXECUTION=1 optional"
+	@echo "  release-manifest   = rebuild machine-readable final delivery inventory"
+	@echo "  qor-gate           = compare current QoR against QOR_BASELINE using config/qor_policy.json"
+	@echo "  release            = final -> verify -> release-manifest -> snapshot"
 	@echo "Stamps prevent expensive completed stages from rerunning when tracked inputs are unchanged."
 	@echo "run_flow.sh additionally checks environment/PDK/tool fingerprints before reusing checkpoints."
 	@echo "After changing physical technology/floorplan inputs, use 'make distclean' deliberately before rebuilding the ICC2 database."
@@ -90,6 +93,18 @@ fingerprint:
 freshness:
 	@test -n "$(STAGE)" || { echo "ERROR: use 'make freshness STAGE=synth'" >&2; exit 2; }
 	@$(PYTHON) python/stage_fingerprint.py check --stage "$(STAGE)" $(if $(filter 1,$(DETAILS)),--details,)
+
+provenance:
+	@$(PYTHON) python/build_provenance.py $(if $(filter 1,$(REQUIRE_CLEAN_GIT)),--require-clean-git,)
+
+compare-provenance: provenance
+	@test -n "$(PROVENANCE_BASELINE)" || { echo "ERROR: PROVENANCE_BASELINE must point to a known run_provenance.json" >&2; exit 2; }
+	@$(PYTHON) python/compare_provenance.py --baseline "$(PROVENANCE_BASELINE)" $(if $(filter 1,$(STRICT_EXECUTION)),--strict-execution,)
+
+release-manifest:
+	@test -d final_delivery || { echo "ERROR: final_delivery does not exist; run 'make final' first" >&2; exit 2; }
+	@$(PYTHON) python/build_release_manifest.py
+	@cd final_delivery && find . -type f ! -name checksums.txt -print0 | sort -z | xargs -0 -r sha256sum > checksums.txt
 
 qor-gate: $(SUMMARY_STAMP) config/qor_policy.json python/check_qor_regression.py
 	@test -n "$(QOR_BASELINE)" || { echo "ERROR: QOR_BASELINE must point to a known-good qor_summary.json" >&2; exit 2; }
@@ -230,13 +245,17 @@ $(SUMMARY_STAMP): $(SIGNOFF_STAMP) python/generate_summary.py python/report_util
 	@$(PYTHON) python/generate_summary.py
 
 final: $(FINAL_STAMP)
-$(FINAL_STAMP): $(LVS_STAMP) $(SUMMARY_STAMP) scripts/final/collect_deliverables.sh
+$(FINAL_STAMP): $(LVS_STAMP) $(SUMMARY_STAMP) scripts/final/collect_deliverables.sh python/build_provenance.py python/build_release_manifest.py
 	@bash scripts/final/collect_deliverables.sh
 
 verify: $(FINAL_STAMP) config/stage_contracts.json python/verify_artifacts.py python/report_utils.py
 	@$(PYTHON) python/verify_artifacts.py
 
-release: final verify snapshot
+release:
+	@$(MAKE) --no-print-directory final
+	@$(MAKE) --no-print-directory verify
+	@$(MAKE) --no-print-directory release-manifest
+	@$(MAKE) --no-print-directory snapshot
 
 snapshot:
 	@bash scripts/common/create_run_snapshot.sh
