@@ -8,7 +8,6 @@ FLOW_RUN_ID="${FLOW_RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
 export FLOW_RUN_ID
 
 dry_run=0
-list_only=0
 
 normalize(){
   case "$1" in
@@ -60,8 +59,10 @@ Usage:
   ./run_flow.sh --from <stage> [--to <stage>] [--dry-run]
   ./run_flow.sh --resume <stage> [--to <stage>] [--dry-run]
   ./run_flow.sh --list
-  ./run_flow.sh doctor
-  ./run_flow.sh sdc-audit
+
+Quality/reproducibility commands also accepted directly:
+  doctor static config-check test-parsers sdc-audit mmmc-audit mmmc-signoff-audit
+  capabilities fingerprint freshness provenance compare-provenance release-manifest qor-gate release
 
 FLOW_RUN_ID=$FLOW_RUN_ID
 USAGE
@@ -71,7 +72,7 @@ if [[ $# -eq 0 ]]; then usage; exit 2; fi
 if [[ "$1" == "--list" ]]; then printf '%s\n' "${stages[@]}"; exit 0; fi
 if [[ "$1" == "all" ]]; then for s in "${stages[@]}"; do run "$s"; done; exit 0; fi
 if [[ "$1" != --* ]]; then
-  if [[ "$1" =~ ^(release|static|config-check|test-parsers|qor-gate|sdc-audit|capabilities|doctor|fingerprint|freshness)$ ]]; then run "$1"; exit 0; fi
+  if [[ "$1" =~ ^(release|static|config-check|test-parsers|qor-gate|sdc-audit|mmmc-audit|mmmc-signoff-audit|capabilities|doctor|fingerprint|freshness|provenance|compare-provenance|release-manifest)$ ]]; then run "$1"; exit 0; fi
   idx "$1" >/dev/null || { echo "Unknown stage: $1" >&2; usage >&2; exit 2; }; run "$1"; exit 0
 fi
 from=0; to=$((${#stages[@]}-1))
