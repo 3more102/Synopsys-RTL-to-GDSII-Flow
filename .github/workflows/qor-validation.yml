@@ -1,0 +1,65 @@
+name: QoR Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  parser-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Rich parser and normalized metric unit tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/python
+        run: |
+          python3 -m unittest discover -s tests -p 'test_rich_qor_parsers.py' -v
+          python3 -m unittest discover -s tests -p 'test_stage_metrics.py' -v
+          python3 -m unittest discover -s tests -p 'test_metric_history.py' -v
+          python3 -m unittest discover -s tests -p 'test_metric_regression.py' -v
+          python3 -m unittest discover -s tests -p 'test_qor_dashboard.py' -v
+
+  mock-qor-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Exercise clean, hold, multi-corner and regression mock flows
+        env:
+          PYTHONPATH: ${{ github.workspace }}/python
+        run: |
+          mkdir -p work/qor_ci
+
+          python3 python/run_mock_flow.py --output work/qor_ci/clean --scenario clean
+          python3 python/validate_mock_flow.py work/qor_ci/clean
+          python3 python/build_stage_metrics.py --root work/qor_ci/clean --out work/qor_ci/clean/reports/metrics
+          python3 python/qor_dashboard.py --metrics work/qor_ci/clean/reports/metrics/all_metrics.json --regression work/qor_ci/no_baseline.json --out work/qor_ci/clean/reports/summary
+
+          python3 python/run_mock_flow.py --output work/qor_ci/hold_fail --scenario hold_fail
+          python3 python/validate_mock_flow.py work/qor_ci/hold_fail
+
+          python3 python/run_mock_flow.py --output work/qor_ci/multi_corner --scenario multi_corner
+          python3 python/validate_mock_flow.py work/qor_ci/multi_corner
+          python3 python/build_stage_metrics.py --root work/qor_ci/multi_corner --out work/qor_ci/multi_corner/reports/metrics
+
+          python3 python/run_mock_flow.py --output work/qor_ci/qor_regression --scenario qor_regression
+          python3 python/validate_mock_flow.py work/qor_ci/qor_regression
+          python3 python/build_stage_metrics.py --root work/qor_ci/qor_regression --out work/qor_ci/qor_regression/reports/metrics
+          python3 python/check_metric_regression.py \
+            --current work/qor_ci/qor_regression/reports/metrics/all_metrics.json \
+            --baseline work/qor_ci/clean/reports/metrics/all_metrics.json \
+            --out work/qor_ci/metric_regression.json
+
+      - name: Upload deterministic QoR evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qor-validation-evidence
+          path: work/qor_ci
+          retention-days: 7
+          if-no-files-found: error
