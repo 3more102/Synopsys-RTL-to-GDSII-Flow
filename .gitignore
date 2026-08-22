@@ -1,0 +1,23 @@
+.env.local
+# Generated EDA databases and transient data
+/work/
+/database/
+/checkpoints/
+/runs/
+/logs/*.log
+*.log
+*.svf
+*.mr
+*.syn
+*.pvl
+*.pvl.v
+*.cmd
+*.session
+*.ses
+*.ddc
+# Large final binaries are usually distributed separately
+/gds/*.gds
+/gds/*.oas
+# Preserve scripts, configs, reports and final manifests by default.
+__pycache__/
+*.pyc

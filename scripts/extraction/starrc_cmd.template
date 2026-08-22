@@ -1,0 +1,9 @@
+# StarRC command-file TEMPLATE.
+# Populate process-specific values from the licensed/foundry technology kit.
+# STAR_DIRECTORY: <run directory>
+# NETLIST_FILE: <post-route netlist>
+# EXTRACTION: RC
+# COUPLE_TO_GROUND: NO
+# REDUCTION: NO
+# MILKYWAY_DATABASE / NDM handoff syntax is StarRC-release specific.
+# Do not guess STARRC_TECH_FILE or mapping data.

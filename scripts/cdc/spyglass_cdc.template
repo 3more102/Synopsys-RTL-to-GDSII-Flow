@@ -1,0 +1,5 @@
+# SpyGlass CDC hook/template.
+# Dedicated CDC constraints, clocks, resets, synchronizer policy and waivers are project-specific.
+# Do not treat synthesis/STA as a CDC signoff replacement.
+# Populate this project file using the installed SpyGlass release's documented project syntax,
+# then invoke it through the wrapper below.

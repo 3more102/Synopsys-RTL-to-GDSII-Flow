@@ -1,0 +1,26 @@
+# =============================================================================
+# Flow methodology switches. Keep technology-independent policy here.
+# Values can be overridden with environment variables of the same name.
+# =============================================================================
+set ENABLE_UPF                  [cfg_env ENABLE_UPF 0]
+set ENABLE_CLOCK_GATING         [cfg_env ENABLE_CLOCK_GATING 0]
+set ENABLE_DFT                  [cfg_env ENABLE_DFT 0]
+set ENABLE_SI                   [cfg_env ENABLE_SI 0]
+set ENABLE_SAIF_POWER           [cfg_env ENABLE_SAIF_POWER 0]
+set ENABLE_STARRC               [cfg_env ENABLE_STARRC 0]
+set ENABLE_SBPF                 [cfg_env ENABLE_SBPF 0]
+set ENABLE_DSPF                 [cfg_env ENABLE_DSPF 0]
+set ENABLE_ICV                  [cfg_env ENABLE_ICV 0]
+set ENABLE_PG_GEOMETRY          [cfg_env ENABLE_PG_GEOMETRY 1]
+set ENABLE_TAP_ENDCAP           [cfg_env ENABLE_TAP_ENDCAP 0]
+set ENABLE_SPARE_CELLS          [cfg_env ENABLE_SPARE_CELLS 0]
+set ENABLE_FILLERS              [cfg_env ENABLE_FILLERS 0]
+set ENABLE_DECAPS               [cfg_env ENABLE_DECAPS 0]
+set ENABLE_TIE_CELLS            [cfg_env ENABLE_TIE_CELLS 0]
+set SYNTH_EFFORT                [cfg_env SYNTH_EFFORT high]
+set PHYS_EFFORT                 [cfg_env PHYS_EFFORT high]
+set SYNTH_FLATTEN               [cfg_env SYNTH_FLATTEN 0]
+set ENABLE_INCREMENTAL_SYNTH    [cfg_env ENABLE_INCREMENTAL_SYNTH 1]
+set ROUTE_TIMING_CLOSURE_ITERS  [cfg_env ROUTE_TIMING_CLOSURE_ITERS 3]
+set CREATE_RUN_SNAPSHOT         [cfg_env CREATE_RUN_SNAPSHOT 1]
+set ARCHIVE_OLD_LOGS            [cfg_env ARCHIVE_OLD_LOGS 1]
