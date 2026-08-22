@@ -4,12 +4,18 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="$ROOT/final_delivery"
 PROJECT_NAME="${PROJECT_NAME:-MIPS_16}"
 PYTHON="${PYTHON:-python3}"
-mkdir -p "$OUT"/{timing,power,physical,qor,history,tools,logs,provenance,floorplan/reports,floorplan/screenshot}
+mkdir -p "$OUT"/{timing,power,physical,qor/metrics,history,tools,logs,provenance,floorplan/reports,floorplan/screenshot}
 copy_if(){ [[ -f "$1" ]] && cp -f "$1" "$2" || true; }
 
 # Capture reproducibility evidence immediately before packaging so the release
 # contains the identity of the inputs/methodology/technology used at delivery time.
 "$PYTHON" "$ROOT/python/build_provenance.py"
+
+# Refresh normalized metrics from already-generated reports. This is evidence
+# parsing only; it does not launch EDA tools or manufacture missing values.
+if [[ -f "$ROOT/python/build_stage_metrics.py" ]]; then
+  "$PYTHON" "$ROOT/python/build_stage_metrics.py"
+fi
 
 # Refresh per-artifact lineage after run provenance exists. The normal final
 # package records missing required artifacts as WARNING evidence rather than
@@ -18,21 +24,25 @@ if [[ -f "$ROOT/python/build_artifact_provenance.py" ]]; then
   "$PYTHON" "$ROOT/python/build_artifact_provenance.py"
 fi
 
-# Refresh advisory rebuild evidence and the self-contained dashboard before
-# copying reports into final_delivery. The rebuild planner is evidence-only and
-# never launches a licensed EDA tool. A stale plan is recorded rather than hidden;
-# final release acceptance remains governed by verify_artifacts/QoR policy.
+# Refresh advisory rebuild evidence and dashboards before copying reports into
+# final_delivery. These reports do not replace release/signoff acceptance gates.
 if [[ -f "$ROOT/python/plan_rebuild.py" ]]; then
   "$PYTHON" "$ROOT/python/plan_rebuild.py" || true
 fi
 if [[ -f "$ROOT/python/generate_dashboard.py" ]]; then
   "$PYTHON" "$ROOT/python/generate_dashboard.py"
 fi
+if [[ -f "$ROOT/python/qor_dashboard.py" ]]; then
+  "$PYTHON" "$ROOT/python/qor_dashboard.py"
+fi
 
-# Build historical trend evidence from archived run snapshots and the current
-# report set. Missing metrics remain N/A; this does not create signoff results.
+# Build both established scalar history and normalized metric history. Missing
+# metrics remain absent/N/A and mock/real classification stays explicit.
 if [[ -f "$ROOT/python/index_run_history.py" ]]; then
   "$PYTHON" "$ROOT/python/index_run_history.py" --include-current
+fi
+if [[ -f "$ROOT/python/index_metric_history.py" ]]; then
+  "$PYTHON" "$ROOT/python/index_metric_history.py" --include-current
 fi
 
 copy_if "$ROOT/gds/${PROJECT_NAME}.gds" "$OUT/${PROJECT_NAME}.gds"
@@ -47,6 +57,7 @@ cp -a "$ROOT/reports/signoff/." "$OUT/timing/" 2>/dev/null || true
 cp -a "$ROOT/reports/power/." "$OUT/power/" 2>/dev/null || true
 cp -a "$ROOT/reports/physical/." "$OUT/physical/" 2>/dev/null || true
 cp -a "$ROOT/reports/summary/." "$OUT/qor/" 2>/dev/null || true
+cp -a "$ROOT/reports/metrics/." "$OUT/qor/metrics/" 2>/dev/null || true
 cp -a "$ROOT/reports/history/." "$OUT/history/" 2>/dev/null || true
 cp -a "$ROOT/reports/provenance/." "$OUT/provenance/" 2>/dev/null || true
 cp -a "$ROOT/reports/floorplan/." "$OUT/floorplan/reports/" 2>/dev/null || true
