@@ -8,13 +8,13 @@ FLOW_RUN_ID="${FLOW_RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
 export FLOW_RUN_ID
 
 dry_run=0
+list_only=0
 
 normalize(){
   case "$1" in
     environment|check) echo env;; synthesis) echo synth;; pre-sta|sta) echo presta;;
     placement) echo place;; pre-cts) echo prects;; post-cts) echo postcts;;
     post-route) echo postroute;; extraction) echo extract;; physical-verification|pv) echo drc;;
-    release) echo verify;;
     *) echo "$1";;
   esac
 }
@@ -30,7 +30,11 @@ idx(){
 run(){
   local s="$(normalize "$1")"
   echo "========== $s [FLOW_RUN_ID=$FLOW_RUN_ID] =========="
-  if (( dry_run )); then make --no-print-directory -n "$s"; else make --no-print-directory "$s"; fi
+  if (( dry_run )); then
+    make --no-print-directory -n "$s"
+  else
+    make --no-print-directory "$s"
+  fi
 }
 
 usage(){
@@ -46,12 +50,26 @@ FLOW_RUN_ID=$FLOW_RUN_ID
 USAGE
 }
 
-if [[ $# -eq 0 ]]; then usage; exit 2; fi
-if [[ "$1" == "--list" ]]; then printf '%s\n' "${stages[@]}"; exit 0; fi
-if [[ "$1" == "all" ]]; then for s in "${stages[@]}"; do run "$s"; done; exit 0; fi
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 2
+fi
+
+if [[ "$1" == "--list" ]]; then
+  printf '%s\n' "${stages[@]}"
+  exit 0
+fi
+
+if [[ "$1" == "all" ]]; then
+  for s in "${stages[@]}"; do run "$s"; done
+  exit 0
+fi
+
 if [[ "$1" != --* ]]; then
+  if [[ "$1" =~ ^(release|static|config-check|test-parsers)$ ]]; then run "$1"; exit 0; fi
   idx "$1" >/dev/null || { echo "Unknown stage: $1" >&2; usage >&2; exit 2; }
-  run "$1"; exit 0
+  run "$1"
+  exit 0
 fi
 
 from=0
@@ -60,13 +78,22 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --resume|--from)
       [[ $# -ge 2 ]] || { echo "Missing stage after $1" >&2; exit 2; }
-      from=$(idx "$2") || { echo "Unknown stage: $2" >&2; exit 2; }; shift 2;;
+      from=$(idx "$2") || { echo "Unknown stage: $2" >&2; exit 2; }
+      shift 2;;
     --to)
       [[ $# -ge 2 ]] || { echo "Missing stage after --to" >&2; exit 2; }
-      to=$(idx "$2") || { echo "Unknown stage: $2" >&2; exit 2; }; shift 2;;
-    --dry-run) dry_run=1; shift;;
-    --help|-h) usage; exit 0;;
-    *) echo "Unknown option: $1" >&2; usage >&2; exit 2;;
+      to=$(idx "$2") || { echo "Unknown stage: $2" >&2; exit 2; }
+      shift 2;;
+    --dry-run)
+      dry_run=1
+      shift;;
+    --help|-h)
+      usage
+      exit 0;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2;;
   esac
 done
 

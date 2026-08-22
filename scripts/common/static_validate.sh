@@ -37,6 +37,12 @@ python3 -m json.tool config/stage_contracts.json >/dev/null
 say "Checking Makefile parse"
 make --no-print-directory -s help >/dev/null
 
+say "Checking configuration relationships"
+tclsh scripts/common/validate_config.tcl
+
+say "Running parser unit tests"
+PYTHONPATH="$ROOT/python" python3 -m unittest discover -s tests -p "test_*.py" -v
+
 say "Checking Tcl/SDC lexical completeness"
 if command -v tclsh >/dev/null 2>&1; then
   while IFS= read -r -d '' f; do
@@ -59,7 +65,7 @@ else
 fi
 
 say "Checking unresolved merge markers"
-if grep -R -n -E '^(<<<<<<<|=======|>>>>>>>)' --exclude-dir=.git -- . >/tmp/asic_merge_markers.$$ 2>/dev/null; then
+if grep -R -n -E '^(<<<<<<<|=======|>>>>>>>)' -- Makefile *.sh config constraints scripts python tests docs .github power_intent >/tmp/asic_merge_markers.$$ 2>/dev/null; then
   cat /tmp/asic_merge_markers.$$ >&2
   err "unresolved merge markers found"
 fi
