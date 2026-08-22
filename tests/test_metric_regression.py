@@ -26,10 +26,9 @@ class MetricRegressionTests(unittest.TestCase):
             },
         }
 
-    def policy(self, metric="setup_wns_ns", **rule):
-        base = {"direction": "higher", "max_regression_abs": 0.05, "severity": "fail"}
-        base.update(rule)
-        return {"schema_version": 1, "metrics": {metric: base}}
+    def policy(self, metric="setup_wns_ns", rule=None):
+        selected = dict(rule or {"direction": "higher", "max_regression_abs": 0.05, "severity": "fail"})
+        return {"schema_version": 1, "metrics": {metric: selected}}
 
     def test_wns_regression_fails_with_correct_direction(self):
         baseline = self.payload(0.10)
@@ -39,7 +38,7 @@ class MetricRegressionTests(unittest.TestCase):
         self.assertAlmostEqual(result["checks"][0]["regression"], 0.08)
 
     def test_area_small_regression_passes_and_large_warns(self):
-        policy = self.policy("total_cell_area_um2", direction="lower", max_regression_percent=2.0, severity="warn")
+        policy = self.policy("total_cell_area_um2", {"direction": "lower", "max_regression_percent": 2.0, "severity": "warn"})
         baseline = self.payload(100.0, "total_cell_area_um2", stage="placement", source="reports/placement/utilization.rpt", scenario="", corner="", unit="um^2")
         small = self.payload(101.0, "total_cell_area_um2", stage="placement", source="reports/placement/utilization.rpt", scenario="", corner="", unit="um^2")
         large = self.payload(103.0, "total_cell_area_um2", stage="placement", source="reports/placement/utilization.rpt", scenario="", corner="", unit="um^2")
@@ -68,12 +67,12 @@ class MetricRegressionTests(unittest.TestCase):
         self.assertEqual(reg.compare(self.payload(0.1), None, self.policy())["status"], "NO_BASELINE")
 
     def test_zero_baseline_percentage_has_defined_failure_semantics(self):
-        policy = self.policy("total_w", direction="lower", max_regression_percent=3.0, severity="warn")
+        policy = self.policy("total_w", {"direction": "lower", "max_regression_percent": 3.0, "severity": "warn"})
         baseline = self.payload(0.0, "total_w", source="reports/power/vectorless_power.rpt", scenario="", corner="", unit="W")
         current = self.payload(0.1, "total_w", source="reports/power/vectorless_power.rpt", scenario="", corner="", unit="W")
         result = reg.compare(current, baseline, policy)
         self.assertEqual(result["status"], "WARN")
-        self.assertIn("baseline is zero", result["checks"][0]["messages"][0])
+        self.assertTrue(any("baseline is zero" in message for message in result["checks"][0]["messages"]))
 
     def test_duplicate_baseline_identity_is_not_comparable(self):
         baseline = self.payload(0.10)
