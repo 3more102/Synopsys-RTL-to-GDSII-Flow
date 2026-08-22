@@ -69,6 +69,28 @@ cat > "$meta" <<EOF_META
 }
 EOF_META
 cp -f "$meta" "$latest"
+
+# Artifact provenance runs only after runtime metadata exists, so the artifact
+# record can point back to the exact tool/run evidence that generated it. This
+# capture is advisory in the stage runner; release verification can invoke the
+# same builder with --strict-required as an explicit artifact gate.
+artifact_provenance_status="NOT_RUN"; artifact_provenance_file=""; artifact_provenance_missing=""
+if [[ $rc -eq 0 && -f "$ROOT/python/build_artifact_provenance.py" && -f "$ROOT/config/artifact_provenance.json" ]]; then
+  set +e
+  artifact_out="$(python3 "$ROOT/python/build_artifact_provenance.py" --stage "$stage" 2>&1)"; artifact_rc=$?
+  set -e
+  printf '%s\n' "$artifact_out" | tee -a "$log"
+  if [[ $artifact_rc -eq 0 ]]; then
+    artifact_provenance_status="$(printf '%s\n' "$artifact_out" | sed -n 's/^ARTIFACT_PROVENANCE_STATUS=//p' | tail -1)"
+    artifact_provenance_file="$(printf '%s\n' "$artifact_out" | sed -n 's/^ARTIFACT_PROVENANCE=//p' | tail -1)"
+    artifact_provenance_missing="$(printf '%s\n' "$artifact_out" | sed -n 's/^ARTIFACT_PROVENANCE_MISSING_REQUIRED=//p' | tail -1)"
+    [[ -n "$artifact_provenance_status" ]] || artifact_provenance_status="UNKNOWN"
+  else
+    artifact_provenance_status="ERROR"
+    echo "WARNING: artifact lineage capture failed with rc=$artifact_rc; tool stage result remains unchanged." | tee -a "$log" >&2
+  fi
+fi
+
 if [[ $rc -eq 0 ]]; then
   runner_state=PASS; detail="Tool process completed with exit code 0; engineering quality remains report/status driven."
 else
@@ -85,7 +107,10 @@ metadata=$meta
 triage_status=$triage_status
 triage_primary=$triage_primary
 triage_report=$triage_md
+artifact_provenance_status=$artifact_provenance_status
+artifact_provenance=$artifact_provenance_file
+artifact_provenance_missing_required=$artifact_provenance_missing
 EOF_STATUS
-echo "================================================================" | tee -a "$log"; echo "stage=$stage exit_code=$rc duration_seconds=$duration" | tee -a "$log"; echo "runtime_metadata=$meta" | tee -a "$log"; if [[ -n "$triage_md" ]]; then echo "failure_triage=$triage_md" | tee -a "$log"; fi; echo "================================================================" | tee -a "$log"
+echo "================================================================" | tee -a "$log"; echo "stage=$stage exit_code=$rc duration_seconds=$duration" | tee -a "$log"; echo "runtime_metadata=$meta" | tee -a "$log"; if [[ -n "$triage_md" ]]; then echo "failure_triage=$triage_md" | tee -a "$log"; fi; if [[ -n "$artifact_provenance_file" ]]; then echo "artifact_provenance=$artifact_provenance_file status=$artifact_provenance_status missing_required=${artifact_provenance_missing:-0}" | tee -a "$log"; fi; echo "================================================================" | tee -a "$log"
 if [[ $rc -ne 0 ]]; then echo "ERROR: stage '$stage' failed with exit code $rc" >&2; fi
 exit "$rc"
