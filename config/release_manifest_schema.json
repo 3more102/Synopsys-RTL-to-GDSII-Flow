@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/synopsys-rtl-to-gdsii/release-manifest.schema.json",
+  "title": "ASIC Flow Release Manifest",
+  "type": "object",
+  "required": ["schema_version", "project", "created_at", "provenance_digest", "artifacts", "statuses"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project": {"type": "string", "minLength": 1},
+    "top_module": {"type": "string"},
+    "created_at": {"type": "string"},
+    "provenance_digest": {"type": "string"},
+    "git": {"type": "object"},
+    "artifacts": {"type": "array"},
+    "statuses": {"type": "object"},
+    "qor": {"type": ["object", "null"]},
+    "foundry_signoff": {"enum": ["PASS", "FAIL", "UNKNOWN"]}
+  },
+  "additionalProperties": true
+}

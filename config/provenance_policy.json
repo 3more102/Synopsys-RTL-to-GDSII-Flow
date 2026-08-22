@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "description": "Reproducibility identity policy. Only explicit non-secret environment variables are recorded.",
+  "external_path_mode": "stat",
+  "groups": {
+    "design": {
+      "files": [
+        "rtl/*.v", "rtl/*.sv", "constraints/*.sdc",
+        "config/project_config.tcl", "config/rtl_files.tcl",
+        "config/modes.tcl", "config/corners.tcl", "config/scenarios.tcl"
+      ],
+      "env": [
+        "PROJECT_NAME", "TOP_MODULE", "CLOCK_NAME", "CLOCK_PORT", "CLOCK_PERIOD",
+        "CORE_UTILIZATION", "CORE_ASPECT_RATIO", "CORE_OFFSET"
+      ]
+    },
+    "methodology": {
+      "files": [
+        "Makefile", "run_flow.sh", "setup.sh", "clean.sh", "resume.sh",
+        "scripts/**/*.tcl", "scripts/**/*.sh", "python/**/*.py",
+        "config/flow_options.tcl", "config/stage_contracts.json", "config/qor_policy.json",
+        "config/fingerprint_policy.json", "config/sdc_audit_policy.json", "config/tool_capabilities.json",
+        "config/provenance_policy.json"
+      ],
+      "env": [
+        "SYNTH_EFFORT", "PHYS_EFFORT", "ENABLE_INCREMENTAL_SYNTH", "ENABLE_CLOCK_GATING",
+        "ENABLE_SI", "MAX_PATHS", "ROUTE_TIMING_CLOSURE_ITERS"
+      ]
+    },
+    "technology": {
+      "files": ["config/libraries.tcl", "config/technology.tcl"],
+      "env": [
+        "TECHNOLOGY", "PROCESS_NODE", "MIN_ROUTING_LAYER", "MAX_ROUTING_LAYER",
+        "PG_RING_H_LAYER", "PG_RING_V_LAYER", "PG_MESH_H_LAYER", "PG_MESH_V_LAYER",
+        "PG_STD_CELL_RAIL_LAYER"
+      ],
+      "external_env_paths": [
+        "TARGET_LIBRARY", "LINK_LIBRARIES", "STD_CELL_NDM", "TECH_FILE",
+        "TLU_PLUS_MAX", "TLU_PLUS_MIN", "TLU_PLUS_MAP", "GDS_LAYER_MAP",
+        "ICV_DRC_RUNSET", "ICV_LVS_RUNSET", "STARRC_COMMAND_FILE"
+      ]
+    },
+    "execution": {
+      "files": [],
+      "env": [
+        "DC_SHELL", "ICC2_SHELL", "PT_SHELL", "FM_SHELL", "STARRC", "ICV"
+      ]
+    }
+  },
+  "comparison_severity": {
+    "design": "FAIL",
+    "methodology": "FAIL",
+    "technology": "FAIL",
+    "execution": "WARNING"
+  }
+}
