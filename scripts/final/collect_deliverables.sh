@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="$ROOT/final_delivery"
 PROJECT_NAME="${PROJECT_NAME:-MIPS_16}"
 PYTHON="${PYTHON:-python3}"
-mkdir -p "$OUT"/{timing,power,physical,qor,history,logs,provenance,floorplan/reports,floorplan/screenshot}
+mkdir -p "$OUT"/{timing,power,physical,qor,history,tools,logs,provenance,floorplan/reports,floorplan/screenshot}
 copy_if(){ [[ -f "$1" ]] && cp -f "$1" "$2" || true; }
 
 # Capture reproducibility evidence immediately before packaging so the release
@@ -34,6 +34,8 @@ copy_if "$ROOT/sdf/${PROJECT_NAME}_postroute.sdf" "$OUT/${PROJECT_NAME}_postrout
 copy_if "$ROOT/spef/${PROJECT_NAME}_postroute.spef" "$OUT/${PROJECT_NAME}_postroute.spef"
 copy_if "$ROOT/results/final/${PROJECT_NAME}_final.sdc" "$OUT/${PROJECT_NAME}_final.sdc"
 copy_if "$ROOT/scripts/floorplan/01_floorplan.tcl" "$OUT/floorplan/floorplan.tcl"
+copy_if "$ROOT/python/verify_delivery_integrity.py" "$OUT/tools/verify_delivery_integrity.py"
+copy_if "$ROOT/docs/VERIFY_DELIVERY.md" "$OUT/VERIFY_DELIVERY.md"
 cp -a "$ROOT/reports/signoff/." "$OUT/timing/" 2>/dev/null || true
 cp -a "$ROOT/reports/power/." "$OUT/power/" 2>/dev/null || true
 cp -a "$ROOT/reports/physical/." "$OUT/physical/" 2>/dev/null || true
@@ -64,5 +66,13 @@ done
  cd "$OUT"
  find . -type f ! -name checksums.txt -print0 | sort -z | xargs -0 -r sha256sum > checksums.txt
 )
+
+# Verify the completed package after its final checksum inventory exists. The
+# verification report is intentionally written outside final_delivery so it does
+# not mutate the package after checksums are finalized.
+"$PYTHON" "$ROOT/python/verify_delivery_integrity.py" \
+  --delivery "$OUT" \
+  --strict-extra \
+  --report "$ROOT/reports/summary/delivery_integrity.json"
 
 echo "Final deliverables collected in $OUT"
