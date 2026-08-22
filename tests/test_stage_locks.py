@@ -1,7 +1,6 @@
 import importlib.util
 import json
 import os
-import socket
 import tempfile
 from pathlib import Path
 import unittest
@@ -64,20 +63,23 @@ class StageLockTests(unittest.TestCase):
         self.assertEqual(owner["pid"], os.getpid())
         self.assertEqual(locks.inspect_lock(lock_dir)["state"], "ACTIVE")
 
-    def test_dead_same_host_pid_is_stale(self):
+    def test_dead_same_boot_runner_is_unknown_not_auto_stale(self):
         lock_dir = self.lock_dir()
         self.write_owner(lock_dir, pid=99999999, process_start_ticks="")
         info = locks.inspect_lock(lock_dir)
-        self.assertEqual(info["state"], "STALE")
-        self.assertIn("not alive", info["reason"])
+        self.assertEqual(info["state"], "UNKNOWN")
+        self.assertIn("EDA child may have survived", info["reason"])
+        with self.assertRaises(RuntimeError):
+            locks.recover_lock(lock_dir, locks.DEFAULT_ARCHIVE_ROOT)
+        self.assertTrue(lock_dir.exists())
 
-    def test_foreign_host_is_never_auto_classified_stale(self):
+    def test_foreign_host_is_never_recoverable(self):
         lock_dir = self.lock_dir()
         self.write_owner(lock_dir, hostname="foreign-host.invalid")
         info = locks.inspect_lock(lock_dir)
         self.assertEqual(info["state"], "FOREIGN_HOST")
         with self.assertRaises(RuntimeError):
-            locks.recover_stale(lock_dir, locks.DEFAULT_ARCHIVE_ROOT)
+            locks.recover_lock(lock_dir, locks.DEFAULT_ARCHIVE_ROOT, allow_unknown=True)
         self.assertTrue(lock_dir.exists())
 
     def test_missing_owner_is_unknown(self):
@@ -95,30 +97,44 @@ class StageLockTests(unittest.TestCase):
         self.assertEqual(info["state"], "STALE")
         self.assertIn("boot identity changed", info["reason"])
 
-    def test_pid_reuse_identity_mismatch_is_stale(self):
+    def test_pid_reuse_same_boot_is_unknown_not_auto_stale(self):
         lock_dir = self.lock_dir()
         if not locks.process_start_ticks(os.getpid()):
             self.skipTest("process start identity unavailable on this platform")
         self.write_owner(lock_dir, process_start_ticks="definitely-not-current-start")
         info = locks.inspect_lock(lock_dir)
-        self.assertEqual(info["state"], "STALE")
+        self.assertEqual(info["state"], "UNKNOWN")
         self.assertIn("reused", info["reason"])
 
-    def test_recovery_archives_stale_lock_instead_of_deleting(self):
+    def test_recovery_archives_proven_stale_reboot_lock(self):
         lock_dir = self.lock_dir()
-        self.write_owner(lock_dir, pid=99999999, process_start_ticks="")
-        archive = locks.recover_stale(lock_dir, locks.DEFAULT_ARCHIVE_ROOT)
+        old_boot = locks.boot_id()
+        if not old_boot:
+            self.skipTest("boot identity unavailable on this platform")
+        self.write_owner(lock_dir, boot_id="different-boot-id")
+        archive = locks.recover_lock(lock_dir, locks.DEFAULT_ARCHIVE_ROOT)
         self.assertFalse(lock_dir.exists())
         self.assertTrue((archive / locks.OWNER_FILE).is_file())
         recovery = json.loads((archive / "recovery.json").read_text())
         self.assertEqual(recovery["recovery"], "archived_not_deleted")
+        self.assertFalse(recovery["forced_unknown"])
         self.assertEqual(recovery["inspection"]["state"], "STALE")
 
-    def test_active_lock_cannot_be_recovered(self):
+    def test_unknown_lock_requires_explicit_force_unknown(self):
+        lock_dir = self.lock_dir()
+        self.write_owner(lock_dir, pid=99999999, process_start_ticks="")
+        with self.assertRaises(RuntimeError):
+            locks.recover_lock(lock_dir, locks.DEFAULT_ARCHIVE_ROOT)
+        archive = locks.recover_lock(lock_dir, locks.DEFAULT_ARCHIVE_ROOT, allow_unknown=True)
+        recovery = json.loads((archive / "recovery.json").read_text())
+        self.assertTrue(recovery["forced_unknown"])
+        self.assertEqual(recovery["inspection"]["state"], "UNKNOWN")
+
+    def test_active_lock_cannot_be_recovered_even_with_force_unknown(self):
         lock_dir = self.lock_dir()
         self.write_owner(lock_dir)
         with self.assertRaises(RuntimeError):
-            locks.recover_stale(lock_dir, locks.DEFAULT_ARCHIVE_ROOT)
+            locks.recover_lock(lock_dir, locks.DEFAULT_ARCHIVE_ROOT, allow_unknown=True)
         self.assertTrue(lock_dir.exists())
 
 
