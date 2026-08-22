@@ -1,0 +1,46 @@
+# ASIC Flow Checklist
+
+- [ ] RTL files compile/analyze.
+- [ ] Top module elaborates.
+- [ ] No unresolved references or unintended black boxes.
+- [ ] Structural warnings reviewed: drivers, latches, loops, widths, undriven/unused logic.
+- [ ] Dedicated CDC/RDC analysis completed where required.
+- [ ] Primary/generated clocks recognized.
+- [ ] I/O timing assumptions reviewed.
+- [ ] Timing exceptions justified and audited.
+- [ ] No unexpected unconstrained timing paths.
+- [ ] Synthesis completed and mapped to intended library.
+- [ ] Synthesis QoR/area/power reports reviewed.
+- [ ] RTL-to-synthesis Formality equivalence passed.
+- [ ] Pre-layout PrimeTime setup/hold reports reviewed.
+- [ ] ICC2 NDM references link with no unintended unbound cells.
+- [ ] Floorplan utilization/aspect ratio/core offsets accepted.
+- [ ] Macro placement/halos/channels reviewed when macros exist.
+- [ ] Pin placement/interfaces reviewed.
+- [ ] PG layer/via strategy comes from the actual technology kit.
+- [ ] PG connectivity check reviewed.
+- [ ] PG DRC check reviewed.
+- [ ] Placement legal.
+- [ ] Placement congestion acceptable.
+- [ ] Pre-CTS timing/DRV reviewed.
+- [ ] CTS completed.
+- [ ] Clock skew/latency/transition and sink behavior reviewed.
+- [ ] Post-CTS setup/hold and DRV reviewed.
+- [ ] Routing completed.
+- [ ] `check_routes` reviewed.
+- [ ] Post-route timing closure evaluated using WNS + TNS + violation counts, not WNS alone.
+- [ ] Final routed netlist generated.
+- [ ] SPEF extraction generated and annotated successfully.
+- [ ] Post-layout PrimeTime `check_timing` clean enough for signoff interpretation.
+- [ ] Setup timing target met.
+- [ ] Hold timing target met.
+- [ ] Max transition/capacitance/fanout violations reviewed.
+- [ ] Power report method identified as vectorless or activity-based.
+- [ ] ECO candidates compared before/after and only accepted if non-regressive.
+- [ ] Foundry-qualified DRC status known.
+- [ ] Foundry-qualified LVS status known.
+- [ ] IR-drop/EM status known when required.
+- [ ] GDS layer map verified.
+- [ ] Final GDS generated.
+- [ ] Final manifest/checksums generated.
+- [ ] Floorplan screenshot captured from the actual GUI/database.

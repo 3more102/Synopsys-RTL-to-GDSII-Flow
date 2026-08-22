@@ -1,0 +1,60 @@
+                  RTL
+                   |
+                   v
+             RTL Checks
+                   |
+                   v
+              Synthesis
+                   |
+              +----+----+
+              |         |
+              v         v
+          Formal      Pre-STA
+              |         |
+              +----+----+
+                   |
+                   v
+              Floorplan
+                   |
+                   v
+             Power Plan
+                   |
+                   v
+              Placement
+                   |
+                   v
+               Pre-CTS
+                   |
+                   v
+                  CTS
+                   |
+                   v
+             Post-CTS Opt
+                   |
+                   v
+                Routing
+                   |
+                   v
+            Post-Route Opt
+                   |
+                   v
+              Extraction
+                   |
+             +-----+-----+
+             |           |
+             v           v
+          STA          Power
+             |           |
+             +-----+-----+
+                   |
+                   v
+             ECO if needed
+                   |
+                   v
+             Physical Verify
+                   |
+                   v
+                  GDS
+                   |
+                   v
+            Final Delivery

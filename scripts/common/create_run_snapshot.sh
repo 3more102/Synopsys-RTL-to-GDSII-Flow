@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+stamp="$(date +%Y-%m-%d_%H%M%S)"
+run="$ROOT/runs/${stamp}_asic_run"
+mkdir -p "$run"
+for d in config logs reports results checkpoints; do [[ -e "$ROOT/$d" ]] && cp -a "$ROOT/$d" "$run/"; done
+{
+  echo "date=$(date -Is)"; echo "hostname=$(hostname)"; echo "user=$(id -un)";
+  if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo "git_commit=$(git -C "$ROOT" rev-parse HEAD)"; else echo "git_commit=N/A"; fi
+  for t in "${DC_SHELL:-dc_shell}" "${ICC2_SHELL:-icc2_shell}" "${PT_SHELL:-pt_shell}" "${FM_SHELL:-fm_shell}"; do
+    if command -v "$t" >/dev/null 2>&1; then
+      echo "tool=$t path=$(command -v "$t")"
+      echo "version_begin=$t"
+      "$t" -version </dev/null 2>&1 | head -5 || true
+      echo "version_end=$t"
+    else echo "tool=$t MISSING"; fi
+  done
+} > "$run/manifest.txt"
+find "$ROOT/rtl" "$ROOT/constraints" -maxdepth 2 -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum > "$run/input_hashes.sha256"
+echo "$run"

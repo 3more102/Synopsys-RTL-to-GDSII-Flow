@@ -1,0 +1,3 @@
+# SpyGlass RDC hook/template.
+# Configure reset domains, asynchronous reset assumptions, synchronizer structures and waivers
+# in a reviewed project file for the installed SpyGlass release.
