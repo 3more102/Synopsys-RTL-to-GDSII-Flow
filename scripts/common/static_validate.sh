@@ -22,6 +22,7 @@ say "Checking configuration relationships"; tclsh scripts/common/validate_config
 say "Running Python unit tests"; PYTHONPATH="$ROOT/python" python3 -m unittest discover -s tests -p "test_*.py" -v
 say "Checking stage fingerprint policy load"; python3 python/stage_fingerprint.py list >/dev/null
 say "Running static SDC safety audit"; python3 python/sdc_audit.py --check
+say "Running MMMC structural coverage audit"; python3 python/validate_mmmc_coverage.py
 say "Checking Tcl/SDC lexical completeness"
 if command -v tclsh >/dev/null 2>&1; then
   while IFS= read -r -d '' f; do
