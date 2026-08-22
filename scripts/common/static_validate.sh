@@ -32,7 +32,7 @@ print('python syntax: PASS')
 PY
 
 say "Checking JSON configuration"
-python3 -m json.tool config/stage_contracts.json >/dev/null
+for f in config/*.json; do python3 -m json.tool "$f" >/dev/null; done
 
 say "Checking Makefile parse"
 make --no-print-directory -s help >/dev/null
@@ -40,7 +40,7 @@ make --no-print-directory -s help >/dev/null
 say "Checking configuration relationships"
 tclsh scripts/common/validate_config.tcl
 
-say "Running parser unit tests"
+say "Running Python unit tests"
 PYTHONPATH="$ROOT/python" python3 -m unittest discover -s tests -p "test_*.py" -v
 
 say "Checking Tcl/SDC lexical completeness"
