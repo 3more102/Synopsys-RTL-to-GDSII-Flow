@@ -94,4 +94,18 @@ QOR_BASELINE=/path/to/known-good/qor_summary.json make qor-gate
 ./dashboard.sh
 ```
 
+## Final-delivery integration
+
+`scripts/final/collect_deliverables.sh` refreshes the rebuild plan and dashboard before copying summary reports into the release package. Therefore a normal `make final`/`make release` archives:
+
+```text
+final_delivery/qor/rebuild_plan.json
+final_delivery/qor/rebuild_plan.md
+final_delivery/qor/dashboard.html
+```
+
+when those files can be generated from the available evidence. They are then included in the final SHA256 checksum inventory together with the other release artifacts.
+
+The rebuild plan is advisory evidence: it is intentionally recorded even when it says a rebuild is required. Release acceptance remains controlled by the artifact verification and QoR/signoff gates rather than by silently deleting or regenerating implementation databases.
+
 The final HTML page is intended for engineering review and run archiving. It does not replace PrimeTime reports, foundry-qualified DRC/LVS, IR/EM signoff, or silicon validation.
