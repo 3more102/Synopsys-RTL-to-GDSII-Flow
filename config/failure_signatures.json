@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "description": "Conservative log signatures for automatic failure triage. Matches suggest investigation categories; they never prove root cause or success.",
+  "signatures": [
+    {
+      "id": "license_unavailable",
+      "category": "license",
+      "priority": 100,
+      "patterns": [
+        "license checkout failed",
+        "unable to checkout.*license",
+        "no valid license",
+        "licensed feature.*not available",
+        "flexnet.*error",
+        "lmgrd"
+      ],
+      "guidance": [
+        "Check that the required Synopsys feature is licensed for this tool/stage.",
+        "Check the license-server environment and connectivity outside the flow.",
+        "Do not alter design constraints to work around a license failure."
+      ]
+    },
+    {
+      "id": "tool_or_command_missing",
+      "category": "tool_environment",
+      "priority": 95,
+      "patterns": [
+        "command not found",
+        "no such file or directory.*(dc_shell|icc2_shell|pt_shell|fm_shell|starxtract|icv)",
+        "tool executable not found"
+      ],
+      "guidance": [
+        "Verify setup.sh and PATH resolve the intended tool executable.",
+        "Record the resolved executable and version before retrying."
+      ]
+    },
+    {
+      "id": "unsupported_tcl_command",
+      "category": "version_compatibility",
+      "priority": 90,
+      "patterns": [
+        "invalid command name",
+        "unknown command",
+        "command.*is not supported",
+        "unrecognized option",
+        "unknown option"
+      ],
+      "guidance": [
+        "Confirm the command belongs to the shell used for this stage.",
+        "Use the installed Synopsys release documentation/man command to verify syntax.",
+        "Prefer a release-compatible fallback rather than inventing replacement syntax."
+      ]
+    },
+    {
+      "id": "required_input_missing",
+      "category": "missing_input",
+      "priority": 88,
+      "patterns": [
+        "file not found",
+        "cannot open.*file",
+        "could not open.*file",
+        "no such file or directory",
+        "required.*missing",
+        "does not exist"
+      ],
+      "guidance": [
+        "Identify the first missing required input and the stage expected to generate it.",
+        "Check central project/technology configuration rather than hard-coding a path in the failing script.",
+        "Use the rebuild planner if an upstream generated artifact is missing or stale."
+      ]
+    },
+    {
+      "id": "rtl_parse_or_elaboration",
+      "category": "rtl_elaboration",
+      "priority": 85,
+      "patterns": [
+        "syntax error.*verilog",
+        "verilog.*syntax error",
+        "elaboration.*failed",
+        "cannot find.*module",
+        "undefined module",
+        "unresolved reference",
+        "black box.*unresolved"
+      ],
+      "guidance": [
+        "Inspect the earliest RTL parser/elaboration error, not only the final abort message.",
+        "Verify RTL file order, include directories, preprocessor definitions, and TOP_MODULE.",
+        "Do not continue to timing/physical stages while unresolved design references remain."
+      ]
+    },
+    {
+      "id": "library_link_failure",
+      "category": "library_link",
+      "priority": 84,
+      "patterns": [
+        "link.*failed",
+        "cannot find.*reference",
+        "cannot resolve.*reference",
+        "library.*not found",
+        "cannot find.*cell",
+        "reference library.*missing"
+      ],
+      "guidance": [
+        "Verify target/link libraries and NDM references correspond to the mapped netlist cells.",
+        "Check that logical and physical library views are from the intended technology/version.",
+        "Do not substitute guessed cell or library names."
+      ]
+    },
+    {
+      "id": "constraints_or_clock_missing",
+      "category": "constraints",
+      "priority": 80,
+      "patterns": [
+        "no clock",
+        "clock.*not found",
+        "unconstrained.*endpoint",
+        "no constrained paths",
+        "constraint.*not found",
+        "sdc.*error"
+      ],
+      "guidance": [
+        "Verify the SDC loaded successfully and the configured clock port exists after elaboration/link.",
+        "Audit unexpected unconstrained paths before interpreting WNS/TNS.",
+        "Do not add false paths or multicycle paths solely to suppress violations."
+      ]
+    },
+    {
+      "id": "parasitic_annotation_failure",
+      "category": "parasitics",
+      "priority": 78,
+      "patterns": [
+        "spef.*error",
+        "parasitic.*annotation.*failed",
+        "cannot annotate.*parasitic",
+        "unannotated.*nets",
+        "read_parasitics.*failed"
+      ],
+      "guidance": [
+        "Verify the SPEF matches the exact post-route netlist hierarchy and naming.",
+        "Check extraction corner/model consistency with the PrimeTime scenario.",
+        "Treat incomplete parasitic annotation as a signoff blocker when extracted STA is required."
+      ]
+    },
+    {
+      "id": "physical_legality_or_route",
+      "category": "physical_implementation",
+      "priority": 75,
+      "patterns": [
+        "placement.*illegal",
+        "check_legality.*fail",
+        "routing.*failed",
+        "route.*failed",
+        "unrouted.*net",
+        "short.*violation",
+        "drc.*violation"
+      ],
+      "guidance": [
+        "Inspect legality, congestion, route status, and DRC reports at the failing checkpoint.",
+        "Diagnose floorplan/utilization/macro-channel causes before applying broad optimization changes.",
+        "Keep geometric DRC separate from max-transition/capacitance/fanout constraints."
+      ]
+    },
+    {
+      "id": "formality_non_equivalence",
+      "category": "formal_equivalence",
+      "priority": 74,
+      "patterns": [
+        "verification failed",
+        "failing verification points",
+        "non-equivalent",
+        "not equivalent",
+        "unmatched points"
+      ],
+      "guidance": [
+        "Inspect unmatched, failing, and aborted points before changing the RTL or constraints.",
+        "Confirm reference/implementation tops, libraries, SVF guidance, parameters, and preprocessing are aligned.",
+        "Do not mark formal PASS from a tool exit code alone."
+      ]
+    },
+    {
+      "id": "resource_exhaustion",
+      "category": "host_resources",
+      "priority": 70,
+      "patterns": [
+        "out of memory",
+        "cannot allocate memory",
+        "no space left on device",
+        "disk quota exceeded",
+        "killed process",
+        "segmentation fault"
+      ],
+      "guidance": [
+        "Check host memory, swap, disk capacity, quotas, and scheduler limits.",
+        "Preserve the last valid checkpoint before changing host-resource settings.",
+        "A crash/resource exhaustion is not evidence of a design failure."
+      ]
+    }
+  ]
+}
