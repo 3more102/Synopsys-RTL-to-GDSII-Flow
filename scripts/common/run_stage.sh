@@ -20,6 +20,28 @@ if [[ $rc -eq 0 && -f "$ROOT/python/stage_fingerprint.py" && -f "$ROOT/config/fi
   elif [[ "${FINGERPRINT_REQUIRED:-0}" == "1" ]]; then echo "ERROR: fingerprint capture failed and FINGERPRINT_REQUIRED=1" | tee -a "$log" >&2; rc=74
   else echo "WARNING: fingerprint capture failed; stage result retained because FINGERPRINT_REQUIRED!=1" | tee -a "$log" >&2; fi
 fi
+
+# Triage only failed executions. This is deliberately heuristic: the generated
+# report points engineers toward likely investigation categories but never marks
+# a root cause as proven and never changes the tool exit code.
+triage_json=""; triage_md=""; triage_primary=""; triage_category=""; triage_status="NOT_RUN"
+if [[ $rc -ne 0 && -f "$ROOT/python/triage_failure.py" && -f "$ROOT/config/failure_signatures.json" ]]; then
+  set +e
+  triage_out="$(python3 "$ROOT/python/triage_failure.py" --log "$log" --stage "$stage" --tool "$tool" --exit-code "$rc" 2>&1)"; triage_rc=$?
+  set -e
+  printf '%s\n' "$triage_out" | tee -a "$log"
+  if [[ $triage_rc -eq 0 ]]; then
+    triage_status="$(printf '%s\n' "$triage_out" | sed -n 's/^TRIAGE_STATUS=//p' | tail -1)"
+    triage_primary="$(printf '%s\n' "$triage_out" | sed -n 's/^TRIAGE_PRIMARY=//p' | tail -1)"
+    triage_category="$(printf '%s\n' "$triage_out" | sed -n 's/^TRIAGE_CATEGORY=//p' | tail -1)"
+    triage_json="$(printf '%s\n' "$triage_out" | sed -n 's/^TRIAGE_JSON=//p' | tail -1)"
+    triage_md="$(printf '%s\n' "$triage_out" | sed -n 's/^TRIAGE_MARKDOWN=//p' | tail -1)"
+  else
+    triage_status="ERROR"
+    echo "WARNING: automatic failure triage failed with rc=$triage_rc; original stage rc=$rc is preserved." | tee -a "$log" >&2
+  fi
+fi
+
 end_epoch="$(date +%s)"; end_iso="$(date -Is)"; duration="$((end_epoch-start_epoch))"; stamp="$(date +%Y%m%d_%H%M%S)"; meta="$runtime_dir/${slug}_${stamp}.json"; latest="$runtime_dir/${slug}.latest.json"; runner_status="$status_dir/${slug}_runner.status"
 cat > "$meta" <<EOF_META
 {
@@ -38,11 +60,21 @@ cat > "$meta" <<EOF_META
   "git_commit": "$(json_escape "$git_commit")",
   "git_dirty": "$(json_escape "$git_dirty")",
   "input_fingerprint": "$(json_escape "$fingerprint_file")",
-  "input_digest": "$(json_escape "$fingerprint_digest")"
+  "input_digest": "$(json_escape "$fingerprint_digest")",
+  "triage_status": "$(json_escape "$triage_status")",
+  "triage_primary": "$(json_escape "$triage_primary")",
+  "triage_category": "$(json_escape "$triage_category")",
+  "triage_json": "$(json_escape "$triage_json")",
+  "triage_markdown": "$(json_escape "$triage_md")"
 }
 EOF_META
 cp -f "$meta" "$latest"
-if [[ $rc -eq 0 ]]; then runner_state=PASS; detail="Tool process completed with exit code 0; engineering quality remains report/status driven."; else runner_state=FAIL; detail="Tool process exited with code $rc. Inspect log=$log"; fi
+if [[ $rc -eq 0 ]]; then
+  runner_state=PASS; detail="Tool process completed with exit code 0; engineering quality remains report/status driven."
+else
+  runner_state=FAIL; detail="Tool process exited with code $rc. Inspect log=$log"
+  if [[ -n "$triage_primary" && "$triage_primary" != "NONE" ]]; then detail="$detail; heuristic_triage=$triage_primary category=$triage_category report=$triage_md"; fi
+fi
 cat > "$runner_status" <<EOF_STATUS
 stage=${slug}_runner
 status=$runner_state
@@ -50,7 +82,10 @@ detail=$detail
 time=$end_iso
 runtime_seconds=$duration
 metadata=$meta
+triage_status=$triage_status
+triage_primary=$triage_primary
+triage_report=$triage_md
 EOF_STATUS
-echo "================================================================" | tee -a "$log"; echo "stage=$stage exit_code=$rc duration_seconds=$duration" | tee -a "$log"; echo "runtime_metadata=$meta" | tee -a "$log"; echo "================================================================" | tee -a "$log"
+echo "================================================================" | tee -a "$log"; echo "stage=$stage exit_code=$rc duration_seconds=$duration" | tee -a "$log"; echo "runtime_metadata=$meta" | tee -a "$log"; if [[ -n "$triage_md" ]]; then echo "failure_triage=$triage_md" | tee -a "$log"; fi; echo "================================================================" | tee -a "$log"
 if [[ $rc -ne 0 ]]; then echo "ERROR: stage '$stage' failed with exit code $rc" >&2; fi
 exit "$rc"
