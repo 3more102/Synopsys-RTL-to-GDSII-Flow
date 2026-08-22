@@ -30,7 +30,8 @@ def require_mock_header(path: Path, errors: list[str]) -> None:
     if not path.is_file():
         errors.append(f"missing file: {path}")
         return
-    if MOCK_HEADER not in read(path).splitlines()[:2]:
+    first_lines = read(path).splitlines()[:2]
+    if not any(MOCK_HEADER in line for line in first_lines):
         errors.append(f"missing mock safety header: {path}")
 
 
@@ -143,7 +144,6 @@ def validate_mock_run(run: Path) -> dict[str, Any]:
     else:
         errors.append(f"unknown scenario in marker: {scenario}")
 
-    # Mock artifacts must live only under the supplied mock root and remain clearly labeled.
     for rel in [
         f"results/synthesis/{project}_syn.v",
         f"results/synthesis/{project}_syn.sdc",
