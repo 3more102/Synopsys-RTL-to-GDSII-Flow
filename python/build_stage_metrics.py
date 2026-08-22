@@ -89,9 +89,6 @@ def provenance_identity(root: Path) -> dict[str, Any]:
     marker = load_json(root / "MOCK_RUN.json")
     git = p.get("git") if isinstance(p.get("git"), dict) else {}
     if marker.get("mock") is True:
-        # Mock identity must come from the mock marker rather than falling back
-        # to real-project environment defaults. This prevents a mock run from
-        # being indexed as MIPS_16/mips_16 or another real design accidentally.
         return {
             "project": marker.get("project", "MOCK_CHIP"),
             "top": marker.get("top", f"{str(marker.get('project', 'MOCK_CHIP')).lower()}_mock"),
@@ -120,7 +117,12 @@ def parse_source(kind: str, text: str, analysis: str) -> dict[str, Any]:
 
 def flatten_result(result: dict[str, Any], source: str, classification_name: str, stage: str, analysis_class: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    context = result.get("context") if isinstance(result.get("context"), dict) else {}
+    raw_context = result.get("context") if isinstance(result.get("context"), dict) else {}
+    # A multi-scenario parent result is an aggregate parse scope, not the first
+    # scenario. parse_context() necessarily sees the first scenario label in the
+    # raw text, but attributing aggregate CONFLICT/MISSING values to that corner
+    # is incorrect. Child scenario results below keep their own contexts.
+    context = {} if result.get("scenarios") else raw_context
     for name, metric in result.get("metrics", {}).items():
         if not isinstance(metric, dict): continue
         rows.append({
