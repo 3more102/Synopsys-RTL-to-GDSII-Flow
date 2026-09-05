@@ -27,7 +27,7 @@ jobs:
   ptat-sky130-evidence:
     if: startsWith(github.head_ref, 'ptat-sky130-') || startsWith(github.ref_name, 'ptat-sky130-')
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     env:
       PDK_ROOT: /home/runner/pdk
       NGSPICE46_ROOT: /home/runner/ngspice46
@@ -100,6 +100,8 @@ jobs:
           PY
       - name: Run PTAT TT FF SS characterization
         run: python ci_ptat/run_sky130_ci.py
+      - name: Run 45-point ideal and mirror design sweeps
+        run: python ci_ptat/run_sky130_design_sweeps_ci.py
       - name: Upload complete PTAT evidence package
         if: always()
         uses: actions/upload-artifact@v4
