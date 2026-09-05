@@ -30,6 +30,7 @@ jobs:
     timeout-minutes: 35
     env:
       PDK_ROOT: /home/runner/pdk
+      NGSPICE46_ROOT: /home/runner/ngspice46
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,19 +38,29 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install ngspice
+      - name: Install SHA-pinned ngspice 46 portable build
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ngspice
-          ngspice --version
+          set -euxo pipefail
+          curl -L --fail --retry 3 \
+            -o /tmp/ngspice-46-linux64.tar.gz \
+            https://github.com/Schemline-IC/ngspice-builds/releases/download/v46/ngspice-46-linux64.tar.gz
+          echo 'f1ad149c2eae28ea4a6257e700ee76f7a5f2c3f74714ce2fe8f355240a47eac3  /tmp/ngspice-46-linux64.tar.gz' | sha256sum -c -
+          mkdir -p "$NGSPICE46_ROOT"
+          tar -xzf /tmp/ngspice-46-linux64.tar.gz -C "$NGSPICE46_ROOT"
+          chmod +x "$NGSPICE46_ROOT/bin/ngspice"
+          "$NGSPICE46_ROOT/bin/ngspice" --version
+          ldd "$NGSPICE46_ROOT/bin/ngspice" || true
+          echo "$NGSPICE46_ROOT/bin" >> "$GITHUB_PATH"
       - name: Install pinned SKY130 open_pdks build
         uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
         with:
           pdk_name: sky130
           pdk_version: 12df12e2e74145e31c5a13de02f9a1e176b56e67
           pdk_root: /home/runner/pdk
-      - name: Show PDK provenance
+      - name: Show tool and PDK provenance
         run: |
+          which ngspice
+          ngspice --version
           test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
           cat "$PDK_ROOT/sky130A/SOURCES" || true
           sha256sum "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
