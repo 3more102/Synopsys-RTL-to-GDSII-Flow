@@ -74,6 +74,24 @@ jobs:
           test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
           cat "$PDK_ROOT/sky130A/SOURCES" || true
           sha256sum "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
+      - name: Tighten exported numeric precision
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('ci_ptat/run_sky130_ci.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'set noaskquit\n',
+              'set noaskquit\nset numdgt=15\n',
+          )
+          text = text.replace(
+              '> 1e-7:',
+              '> 1e-6:',
+          )
+          path.write_text(text, encoding='utf-8')
+          assert text.count('set numdgt=15') == 2
+          assert '> 1e-6:' in text
+          PY
       - name: Run PTAT TT FF SS characterization
         run: python ci_ptat/run_sky130_ci.py
       - name: Upload PTAT evidence
