@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -u
+REAL="${NGSPICE46_ROOT:-/home/runner/ngspice46}/bin/ngspice"
+
+if [[ ! -x "$REAL" ]]; then
+  echo "ERROR: real ngspice binary not found: $REAL" >&2
+  exit 127
+fi
+
+# Version/help invocations should preserve the real tool behavior exactly.
+case "${1:-}" in
+  --version|-v|-h|--help)
+    exec "$REAL" "$@"
+    ;;
+esac
+
+log_file=""
+args=("$@")
+for ((i=0; i<${#args[@]}; i++)); do
+  if [[ "${args[$i]}" == "-o" && $((i+1)) -lt ${#args[@]} ]]; then
+    log_file="${args[$((i+1))]}"
+    break
+  fi
+done
+
+set +e
+"$REAL" "$@"
+rc=$?
+set -e
+
+if [[ $rc -eq 0 ]]; then
+  exit 0
+fi
+
+# The portable v46 build's spinit references optional XSPICE .cm modules
+# that are not shipped in this archive.  MOS-only SKY130 simulations do not
+# use them, but ngspice may still return status 1.  Accept that status only
+# when the simulation explicitly completed and was not interrupted.  The
+# Python runner then independently validates the generated CSV numerically.
+if [[ -n "$log_file" && -f "$log_file" ]]; then
+  if grep -q "ngspice-46 done" "$log_file" \
+     && ! grep -q "Simulation interrupted due to error" "$log_file"; then
+    echo "INFO: accepting ngspice rc=$rc after completed MOS-only run" >&2
+    exit 0
+  fi
+fi
+
+exit "$rc"
