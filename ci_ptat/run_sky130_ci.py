@@ -84,13 +84,15 @@ def ngspice_version() -> str:
 def ideal_deck(model: Path, corner: str, cfg: dict, csv_name: str) -> str:
     seed = cfg["nominal_characterization_seed"]
     nmos = seed["sensor_nmos"]
+    # SKY130 wrapper subcircuits take W/L as numeric microns.  The PDK
+    # applies its own SCALE=1e-6; adding a 'u' suffix here double-scales.
     return f'''* CI-only SKY130 PTAT ideal-bias characterization
 .lib "{model}" {corner}
 .param VDDVAL={seed["vdd_v"]:.12g}
 .param IBIAS={seed["branch_current_a"]:.12g}
-.param LCH={nmos["l_um"]:.12g}u
-.param W1={nmos["w_small_um"]:.12g}u
-.param W2={nmos["w_large_um"]:.12g}u
+.param LCH={nmos["l_um"]:.12g}
+.param W1={nmos["w_small_um"]:.12g}
+.param W2={nmos["w_large_um"]:.12g}
 .param PTEMP=-40
 .temp {{PTEMP}}
 VDD vdd 0 DC {{VDDVAL}}
@@ -124,11 +126,11 @@ def mirror_deck(model: Path, corner: str, cfg: dict, csv_name: str) -> str:
 .lib "{model}" {corner}
 .param VDDVAL={seed["vdd_v"]:.12g}
 .param IREF={seed["reference_current_a"]:.12g}
-.param LNS={nmos["l_um"]:.12g}u
-.param WNS1={nmos["w_small_um"]:.12g}u
-.param WNS2={nmos["w_large_um"]:.12g}u
-.param LPM={pmos["l_um"]:.12g}u
-.param WPM={pmos["w_um"]:.12g}u
+.param LNS={nmos["l_um"]:.12g}
+.param WNS1={nmos["w_small_um"]:.12g}
+.param WNS2={nmos["w_large_um"]:.12g}
+.param LPM={pmos["l_um"]:.12g}
+.param WPM={pmos["w_um"]:.12g}
 .param PTEMP=-40
 .temp {{PTEMP}}
 VDD vdd 0 DC {{VDDVAL}}
