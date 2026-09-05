@@ -49,15 +49,7 @@ jobs:
           tar -xzf /tmp/ngspice-46-linux64.tar.gz -C "$NGSPICE46_ROOT"
           chmod +x "$NGSPICE46_ROOT/bin/ngspice"
           "$NGSPICE46_ROOT/bin/ngspice" --version
-          test -d "$NGSPICE46_ROOT/share/ngspice"
-          CM_FILE="$(find "$NGSPICE46_ROOT" -type f -name analog.cm -print -quit)"
-          test -n "$CM_FILE"
-          CM_DIR="$(dirname "$CM_FILE")"
-          echo "Detected XSPICE code-model directory: $CM_DIR"
-          find "$CM_DIR" -maxdepth 1 -type f -name '*.cm' -print | sort
-          sudo mkdir -p /usr/local/lib
-          sudo ln -sfn "$CM_DIR" /usr/local/lib/ngspice
-          test -f /usr/local/lib/ngspice/analog.cm
+          test -f "$NGSPICE46_ROOT/share/ngspice/scripts/spinit"
           cat > "$HOME/.spiceinit" <<'EOF'
           set ngbehavior=hsa
           set ng_nomodcheck
@@ -78,7 +70,6 @@ jobs:
           echo "SPICE_LIB_DIR=$SPICE_LIB_DIR"
           echo "SPICE_SCRIPTS=$SPICE_SCRIPTS"
           cat "$HOME/.spiceinit"
-          test -f /usr/local/lib/ngspice/analog.cm
           test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
           cat "$PDK_ROOT/sky130A/SOURCES" || true
           sha256sum "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
