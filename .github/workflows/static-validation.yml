@@ -100,8 +100,8 @@ jobs:
           PY
       - name: Run PTAT TT FF SS characterization
         run: python ci_ptat/run_sky130_ci.py
-      - name: Run targeted sub-10nA ideal and mirror sweep
-        run: python ci_ptat/run_low_current_ci.py
+      - name: Run dense selected-candidate validation
+        run: python ci_ptat/run_dense_candidate_ci.py
       - name: Upload complete PTAT evidence package
         if: always()
         uses: actions/upload-artifact@v4
