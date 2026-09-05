@@ -49,8 +49,15 @@ jobs:
           tar -xzf /tmp/ngspice-46-linux64.tar.gz -C "$NGSPICE46_ROOT"
           chmod +x "$NGSPICE46_ROOT/bin/ngspice"
           "$NGSPICE46_ROOT/bin/ngspice" --version
-          ldd "$NGSPICE46_ROOT/bin/ngspice" || true
+          test -d "$NGSPICE46_ROOT/share/ngspice"
+          find "$NGSPICE46_ROOT/share/ngspice" -maxdepth 2 -type f | sort | head -50
+          cat > "$HOME/.spiceinit" <<'EOF'
+          set ngbehavior=hsa
+          set ng_nomodcheck
+          EOF
           echo "$NGSPICE46_ROOT/bin" >> "$GITHUB_PATH"
+          echo "SPICE_LIB_DIR=$NGSPICE46_ROOT/share/ngspice" >> "$GITHUB_ENV"
+          echo "SPICE_SCRIPTS=$NGSPICE46_ROOT/share/ngspice/scripts" >> "$GITHUB_ENV"
       - name: Install pinned SKY130 open_pdks build
         uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
         with:
@@ -61,6 +68,9 @@ jobs:
         run: |
           which ngspice
           ngspice --version
+          echo "SPICE_LIB_DIR=$SPICE_LIB_DIR"
+          echo "SPICE_SCRIPTS=$SPICE_SCRIPTS"
+          cat "$HOME/.spiceinit"
           test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
           cat "$PDK_ROOT/sky130A/SOURCES" || true
           sha256sum "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
