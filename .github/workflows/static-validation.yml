@@ -54,7 +54,8 @@ jobs:
           set ngbehavior=hsa
           set ng_nomodcheck
           EOF
-          echo "$NGSPICE46_ROOT/bin" >> "$GITHUB_PATH"
+          chmod +x ci_ptat/bin/ngspice
+          echo "$GITHUB_WORKSPACE/ci_ptat/bin" >> "$GITHUB_PATH"
           echo "SPICE_LIB_DIR=$NGSPICE46_ROOT/share/ngspice" >> "$GITHUB_ENV"
           echo "SPICE_SCRIPTS=$NGSPICE46_ROOT/share/ngspice/scripts" >> "$GITHUB_ENV"
       - name: Install pinned SKY130 open_pdks build
