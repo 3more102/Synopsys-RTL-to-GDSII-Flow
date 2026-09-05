@@ -50,7 +50,11 @@ jobs:
           chmod +x "$NGSPICE46_ROOT/bin/ngspice"
           "$NGSPICE46_ROOT/bin/ngspice" --version
           test -d "$NGSPICE46_ROOT/share/ngspice"
-          find "$NGSPICE46_ROOT/share/ngspice" -maxdepth 2 -type f | sort | head -50
+          test -d "$NGSPICE46_ROOT/lib/ngspice"
+          find "$NGSPICE46_ROOT/lib/ngspice" -maxdepth 1 -type f -name '*.cm' -print | sort
+          sudo mkdir -p /usr/local/lib
+          sudo ln -sfn "$NGSPICE46_ROOT/lib/ngspice" /usr/local/lib/ngspice
+          test -f /usr/local/lib/ngspice/analog.cm
           cat > "$HOME/.spiceinit" <<'EOF'
           set ngbehavior=hsa
           set ng_nomodcheck
@@ -71,6 +75,7 @@ jobs:
           echo "SPICE_LIB_DIR=$SPICE_LIB_DIR"
           echo "SPICE_SCRIPTS=$SPICE_SCRIPTS"
           cat "$HOME/.spiceinit"
+          test -f /usr/local/lib/ngspice/analog.cm
           test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
           cat "$PDK_ROOT/sky130A/SOURCES" || true
           sha256sum "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
