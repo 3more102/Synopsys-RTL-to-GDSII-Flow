@@ -50,10 +50,13 @@ jobs:
           chmod +x "$NGSPICE46_ROOT/bin/ngspice"
           "$NGSPICE46_ROOT/bin/ngspice" --version
           test -d "$NGSPICE46_ROOT/share/ngspice"
-          test -d "$NGSPICE46_ROOT/lib/ngspice"
-          find "$NGSPICE46_ROOT/lib/ngspice" -maxdepth 1 -type f -name '*.cm' -print | sort
+          CM_FILE="$(find "$NGSPICE46_ROOT" -type f -name analog.cm -print -quit)"
+          test -n "$CM_FILE"
+          CM_DIR="$(dirname "$CM_FILE")"
+          echo "Detected XSPICE code-model directory: $CM_DIR"
+          find "$CM_DIR" -maxdepth 1 -type f -name '*.cm' -print | sort
           sudo mkdir -p /usr/local/lib
-          sudo ln -sfn "$NGSPICE46_ROOT/lib/ngspice" /usr/local/lib/ngspice
+          sudo ln -sfn "$CM_DIR" /usr/local/lib/ngspice
           test -f /usr/local/lib/ngspice/analog.cm
           cat > "$HOME/.spiceinit" <<'EOF'
           set ngbehavior=hsa
