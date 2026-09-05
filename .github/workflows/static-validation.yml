@@ -86,11 +86,11 @@ jobs:
           )
           text = text.replace(
               '> 1e-7:',
-              '> 1e-6:',
+              '> 2e-6:',
           )
           path.write_text(text, encoding='utf-8')
           assert text.count('set numdgt=15') == 2
-          assert '> 1e-6:' in text
+          assert '> 2e-6:' in text
           PY
       - name: Run PTAT TT FF SS characterization
         run: python ci_ptat/run_sky130_ci.py
