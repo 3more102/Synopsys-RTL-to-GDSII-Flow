@@ -23,3 +23,42 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y tcl
       - name: Validate Bash, Python, JSON, Tcl/SDC, Makefile
         run: bash scripts/common/static_validate.sh
+
+  ptat-sky130-evidence:
+    if: startsWith(github.head_ref, 'ptat-sky130-') || startsWith(github.ref_name, 'ptat-sky130-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PDK_ROOT: /home/runner/pdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ngspice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ngspice
+          ngspice --version
+      - name: Install pinned SKY130 open_pdks build
+        uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
+        with:
+          pdk_name: sky130
+          pdk_version: 12df12e2e74145e31c5a13de02f9a1e176b56e67
+          pdk_root: /home/runner/pdk
+      - name: Show PDK provenance
+        run: |
+          test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
+          cat "$PDK_ROOT/sky130A/SOURCES" || true
+          sha256sum "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
+      - name: Run PTAT TT FF SS characterization
+        run: python ci_ptat/run_sky130_ci.py
+      - name: Upload PTAT evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptat-sky130-evidence
+          path: ci_ptat/results/
+          if-no-files-found: warn
