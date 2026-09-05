@@ -74,7 +74,7 @@ jobs:
           test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
           cat "$PDK_ROOT/sky130A/SOURCES" || true
           sha256sum "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
-      - name: Tighten exported numeric precision
+      - name: Configure evidence precision and version parsing
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -88,16 +88,24 @@ jobs:
               '> 1e-7:',
               '> 2e-6:',
           )
+          old = '    return (proc.stdout or proc.stderr).splitlines()[0].strip()'
+          new = '''    lines = (proc.stdout or proc.stderr).splitlines()\n    for line in lines:\n        if "ngspice-" in line.lower():\n            return line.strip(" *")\n    return lines[0].strip() if lines else "unknown"'''
+          if old not in text:
+              raise SystemExit('ngspice_version parser source not found')
+          text = text.replace(old, new)
           path.write_text(text, encoding='utf-8')
           assert text.count('set numdgt=15') == 2
           assert '> 2e-6:' in text
+          assert 'if "ngspice-" in line.lower()' in text
           PY
       - name: Run PTAT TT FF SS characterization
         run: python ci_ptat/run_sky130_ci.py
-      - name: Upload PTAT evidence
+      - name: Upload complete PTAT evidence package
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ptat-sky130-evidence
-          path: ci_ptat/results/
+          path: |
+            ci_ptat/results/
+            ci_ptat/ptat_*.spice
           if-no-files-found: warn
