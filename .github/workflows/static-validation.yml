@@ -100,6 +100,8 @@ jobs:
           PY
       - name: Run PTAT TT FF SS characterization
         run: python ci_ptat/run_sky130_ci.py
+      - name: Run full SKY130 ideal and mirror design sweeps
+        run: python ci_ptat/run_sky130_design_sweeps_ci.py
       - name: Run dense selected-candidate validation
         run: python ci_ptat/run_dense_candidate_ci.py
       - name: Upload complete PTAT evidence package
