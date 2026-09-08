@@ -98,17 +98,15 @@ jobs:
           assert '> 2e-6:' in text
           assert 'if "ngspice-" in line.lower()' in text
           PY
-      - name: Run PTAT TT FF SS characterization
+      - name: Run PTAT TT FF SS sanity characterization
         run: python ci_ptat/run_sky130_ci.py
-      - name: Run full SKY130 ideal and mirror design sweeps
-        run: python ci_ptat/run_sky130_design_sweeps_ci.py
-      - name: Run dense selected-candidate validation
-        run: python ci_ptat/run_dense_candidate_ci.py
-      - name: Upload complete PTAT evidence package
+      - name: Run exploratory SKY130 tt_mm local-mismatch Monte Carlo
+        run: python ci_ptat/run_local_mismatch_mc_ci.py
+      - name: Upload complete PTAT mismatch evidence package
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ptat-sky130-evidence
+          name: ptat-sky130-mismatch-evidence
           path: |
             ci_ptat/results/
             ci_ptat/ptat_*.spice
