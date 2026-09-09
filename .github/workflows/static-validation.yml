@@ -49,7 +49,11 @@ jobs:
           tar -xzf /tmp/ngspice-46-linux64.tar.gz -C "$NGSPICE46_ROOT"
           chmod +x "$NGSPICE46_ROOT/bin/ngspice"
           "$NGSPICE46_ROOT/bin/ngspice" --version
-          test -f "$NGSPICE46_ROOT/share/ngspice/scripts/spinit"
+          mkdir -p "$GITHUB_WORKSPACE/ci_ptat/spice_scripts"
+          cat > "$GITHUB_WORKSPACE/ci_ptat/spice_scripts/spinit" <<'EOF'
+          set ngbehavior=hsa
+          set ng_nomodcheck
+          EOF
           cat > "$HOME/.spiceinit" <<'EOF'
           set ngbehavior=hsa
           set ng_nomodcheck
@@ -57,7 +61,7 @@ jobs:
           chmod +x ci_ptat/bin/ngspice
           echo "$GITHUB_WORKSPACE/ci_ptat/bin" >> "$GITHUB_PATH"
           echo "SPICE_LIB_DIR=$NGSPICE46_ROOT/share/ngspice" >> "$GITHUB_ENV"
-          echo "SPICE_SCRIPTS=$NGSPICE46_ROOT/share/ngspice/scripts" >> "$GITHUB_ENV"
+          echo "SPICE_SCRIPTS=$GITHUB_WORKSPACE/ci_ptat/spice_scripts" >> "$GITHUB_ENV"
       - name: Install pinned SKY130 open_pdks build
         uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
         with:
@@ -70,6 +74,7 @@ jobs:
           ngspice --version
           echo "SPICE_LIB_DIR=$SPICE_LIB_DIR"
           echo "SPICE_SCRIPTS=$SPICE_SCRIPTS"
+          cat "$SPICE_SCRIPTS/spinit"
           cat "$HOME/.spiceinit"
           test -f "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice"
           cat "$PDK_ROOT/sky130A/SOURCES" || true
