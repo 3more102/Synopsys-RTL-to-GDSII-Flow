@@ -112,6 +112,8 @@ jobs:
         run: python ci_ptat/run_local_mismatch_mc_ci.py
       - name: Run deterministic tt_mm mismatch-vs-bias screen
         run: python ci_ptat/run_mismatch_bias_screen_ci.py
+      - name: Run exploratory tt_mm device-area scaling screen
+        run: python ci_ptat/run_area_scaling_mc_ci.py
       - name: Upload complete PTAT full-design evidence package
         if: always()
         uses: actions/upload-artifact@v4
