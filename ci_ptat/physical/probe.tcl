@@ -9,11 +9,11 @@ load ptat_core
 # instance to a deliberately separated floorplan before any DRC/extraction.
 units microns
 foreach {inst x y} {
-    XMPREF 0 20
-    XMP_SMALL 10 20
-    XMP_LARGE 20 20
-    XMN_SMALL 10 0
-    XMN_LARGE 20 0
+    XMPREF 0um 20um
+    XMP_SMALL 10um 20um
+    XMP_LARGE 20um 20um
+    XMN_SMALL 10um 0um
+    XMN_LARGE 20um 0um
 } {
     select clear
     select cell $inst
