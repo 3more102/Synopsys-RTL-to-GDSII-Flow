@@ -20,7 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Resolve workspace path
-        run: echo "PTAT_PHYSICAL_OUT=$GITHUB_WORKSPACE/ci_ptat/physical_v18_results" >> "$GITHUB_ENV"
+        run: |
+          echo "PTAT_PHYSICAL_OUT=$GITHUB_WORKSPACE/ci_ptat/physical_v18_results" >> "$GITHUB_ENV"
+          mkdir -p "$GITHUB_WORKSPACE/ci_ptat/physical_v18_results"
       - name: Install pinned SKY130 open_pdks build
         uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
         with:
@@ -37,6 +39,7 @@ jobs:
           OPENFASOC_IMAGE_ID=$(docker image inspect "$OPENFASOC_IMAGE" --format '{{.Id}}')
           echo "OPENFASOC_IMAGE_ID=$OPENFASOC_IMAGE_ID" >> "$GITHUB_ENV"
           docker run --rm \
+            -e WORKSPACE="$GITHUB_WORKSPACE" \
             -e PDK_ROOT="$PDK_ROOT" \
             -e OPENFASOC_COMMIT="$OPENFASOC_COMMIT" \
             -e OPENFASOC_IMAGE="$OPENFASOC_IMAGE" \
@@ -46,11 +49,12 @@ jobs:
             -v "$PDK_ROOT:$PDK_ROOT:ro" \
             -w "$GITHUB_WORKSPACE/openfasoc_ref/openfasoc/generators/glayout" \
             "$OPENFASOC_IMAGE" \
-            bash -lc 'pip3 install -q --disable-pip-version-check -r requirements.txt && python3 "$GITHUB_WORKSPACE/ci_ptat/physical_v18_probe.py"'
+            bash -lc 'pip3 install -q --disable-pip-version-check -r requirements.txt && python3 "$WORKSPACE/ci_ptat/physical_v18_probe.py"'
       - name: Hash evidence
         if: always()
         run: |
-          find ci_ptat/physical_v18_results -type f -print0 | sort -z | xargs -0 sha256sum > ci_ptat/physical_v18_results/SHA256SUMS.txt || true
+          mkdir -p ci_ptat/physical_v18_results
+          find ci_ptat/physical_v18_results -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > ci_ptat/physical_v18_results/SHA256SUMS.txt
       - name: Upload physical qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
