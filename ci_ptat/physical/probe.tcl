@@ -5,6 +5,21 @@ puts "magic_version=[version]"
 puts "tech=[tech name]"
 magic::netlist_to_layout "ci_ptat/physical/ptat_core.spice" sky130
 load ptat_core
+# The toolkit seeds devices end-to-end with a small overlap.  Move each
+# instance to a deliberately separated floorplan before any DRC/extraction.
+units microns
+foreach {inst x y} {
+    XMPREF 0 20
+    XMP_SMALL 10 20
+    XMP_LARGE 20 20
+    XMN_SMALL 10 0
+    XMN_LARGE 20 0
+} {
+    select clear
+    select cell $inst
+    move to $x $y
+}
+select clear
 select top cell
 expand
 puts "top_cell=[cellname list self]"
@@ -25,10 +40,13 @@ select top cell
 expand
 save "$outdir/ptat_core_autogen"
 drc check
-set drccount [drc list count]
+set drcresult [drc listall why]
+set drccount 0
+foreach {errtype coordlist} $drcresult {
+    incr drccount [llength $coordlist]
+}
 set fdrc [open "$outdir/drc_report.txt" w]
 puts $fdrc "drc_count=$drccount"
-set drcresult [drc listall why]
 foreach {errtype coordlist} $drcresult {
     puts $fdrc $errtype
     foreach coord $coordlist { puts $fdrc "  $coord" }
