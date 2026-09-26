@@ -1,0 +1,10 @@
+* PTAT selected-candidate physical-layout probe
+* Source topology matches released 1.2 V / 10 nA PMOS-mirror PTAT core.
+.subckt ptat_core
+XMPREF PREF PREF VDD VDD sky130_fd_pr__pfet_01v8 L=1 W=4
+XMP_SMALL VGS_SMALL PREF VDD VDD sky130_fd_pr__pfet_01v8 L=1 W=4
+XMP_LARGE VGS_LARGE PREF VDD VDD sky130_fd_pr__pfet_01v8 L=1 W=4
+XMN_SMALL VGS_SMALL VGS_SMALL GND GND sky130_fd_pr__nfet_01v8 L=0.5 W=1
+XMN_LARGE VGS_LARGE VGS_LARGE GND GND sky130_fd_pr__nfet_01v8 L=0.5 W=8
+.ends ptat_core
+.end
