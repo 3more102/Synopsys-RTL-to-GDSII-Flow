@@ -123,3 +123,46 @@ jobs:
             ci_ptat/results/
             ci_ptat/ptat_*.spice
           if-no-files-found: warn
+
+  ptat-physical-probe:
+    if: startsWith(github.head_ref, 'ptat-physical-') || startsWith(github.ref_name, 'ptat-physical-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PDK_ROOT: /home/runner/pdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Magic and Netgen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y magic netgen
+          magic --version || magic -version || true
+          netgen -batch version || true
+      - name: Install pinned SKY130 open_pdks build
+        uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
+        with:
+          pdk_name: sky130
+          pdk_version: 12df12e2e74145e31c5a13de02f9a1e176b56e67
+          pdk_root: /home/runner/pdk
+      - name: Run Magic physical probe
+        run: |
+          set -euxo pipefail
+          test -f "$PDK_ROOT/sky130A/libs.tech/magic/sky130A.magicrc"
+          test -f "$PDK_ROOT/sky130A/libs.tech/netgen/sky130A_setup.tcl"
+          mkdir -p ci_ptat/physical/out
+          magic -dnull -noconsole -rcfile "$PDK_ROOT/sky130A/libs.tech/magic/sky130A.magicrc" < ci_ptat/physical/probe.tcl | tee ci_ptat/physical/out/magic_probe.log
+      - name: Show physical outputs
+        if: always()
+        run: |
+          find ci_ptat/physical -maxdepth 3 -type f -print
+          cat ci_ptat/physical/out/instance_ports.txt || true
+          cat ci_ptat/physical/out/drc_report.txt || true
+          sed -n '1,220p' ci_ptat/physical/out/ptat_core_extracted.spice || true
+      - name: Upload physical probe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptat-physical-probe
+          path: ci_ptat/physical/out/
+          if-no-files-found: warn
