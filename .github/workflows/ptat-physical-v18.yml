@@ -1,0 +1,60 @@
+name: PTAT Physical v18
+
+on:
+  push:
+    branches: [ptat-physical-v18]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physical-toolchain-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PDK_ROOT: /home/runner/pdk
+      OPENFASOC_COMMIT: 426c17025c7c01d6e7d4d259fb7f9e7d741cc5c4
+      OPENFASOC_IMAGE: msaligane/openfasoc:stable
+      PTAT_PHYSICAL_OUT: ${{ github.workspace }}/ci_ptat/physical_v18_results
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve workspace path
+        run: echo "PTAT_PHYSICAL_OUT=$GITHUB_WORKSPACE/ci_ptat/physical_v18_results" >> "$GITHUB_ENV"
+      - name: Install pinned SKY130 open_pdks build
+        uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
+        with:
+          pdk_name: sky130
+          pdk_version: 12df12e2e74145e31c5a13de02f9a1e176b56e67
+          pdk_root: /home/runner/pdk
+      - name: Fetch pinned OpenFASOC GLayout source
+        run: |
+          git clone --filter=blob:none https://github.com/idea-fasoc/OpenFASOC.git openfasoc_ref
+          git -C openfasoc_ref checkout "$OPENFASOC_COMMIT"
+      - name: Run real SKY130 primitive DRC and LVS qualification
+        run: |
+          docker pull "$OPENFASOC_IMAGE"
+          OPENFASOC_IMAGE_ID=$(docker image inspect "$OPENFASOC_IMAGE" --format '{{.Id}}')
+          echo "OPENFASOC_IMAGE_ID=$OPENFASOC_IMAGE_ID" >> "$GITHUB_ENV"
+          docker run --rm \
+            -e PDK_ROOT="$PDK_ROOT" \
+            -e OPENFASOC_COMMIT="$OPENFASOC_COMMIT" \
+            -e OPENFASOC_IMAGE="$OPENFASOC_IMAGE" \
+            -e OPENFASOC_IMAGE_ID="$OPENFASOC_IMAGE_ID" \
+            -e PTAT_PHYSICAL_OUT="$PTAT_PHYSICAL_OUT" \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
+            -v "$PDK_ROOT:$PDK_ROOT:ro" \
+            -w "$GITHUB_WORKSPACE/openfasoc_ref/openfasoc/generators/glayout" \
+            "$OPENFASOC_IMAGE" \
+            bash -lc 'pip3 install -q --disable-pip-version-check -r requirements.txt && python3 "$GITHUB_WORKSPACE/ci_ptat/physical_v18_probe.py"'
+      - name: Hash evidence
+        if: always()
+        run: |
+          find ci_ptat/physical_v18_results -type f -print0 | sort -z | xargs -0 sha256sum > ci_ptat/physical_v18_results/SHA256SUMS.txt || true
+      - name: Upload physical qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptat-physical-v18-probe
+          path: ci_ptat/physical_v18_results/
+          if-no-files-found: error
