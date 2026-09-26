@@ -22,6 +22,33 @@ foreach {inst x y} {
 select clear
 select top cell
 expand
+set fgeo [open "$outdir/terminal_geometry.txt" w]
+foreach {name x1 y1 x2 y2} {
+    XMPREF_D 1.88um 20.99um 2.08um 21.19um
+    XMPREF_G 0.88um 20.50um 1.08um 20.72um
+    XMPREF_S 0.59um 20.99um 0.79um 21.19um
+    XMP_SMALL_D 11.88um 20.99um 12.08um 21.19um
+    XMP_SMALL_G 10.88um 20.50um 11.08um 20.72um
+    XMP_SMALL_S 10.59um 20.99um 10.79um 21.19um
+    XMN_SMALL_D 11.38um 0.95um 11.58um 1.15um
+    XMN_SMALL_G 10.88um 0.50um 11.08um 0.72um
+    XMN_SMALL_S 10.59um 0.95um 10.79um 1.15um
+    XMP_LARGE_D 21.88um 20.99um 22.08um 21.19um
+    XMP_LARGE_G 20.88um 20.50um 21.08um 20.72um
+    XMP_LARGE_S 20.59um 20.99um 20.79um 21.19um
+    XMN_LARGE_D 21.38um 0.95um 21.58um 1.15um
+    XMN_LARGE_G 20.88um 0.50um 21.08um 0.72um
+    XMN_LARGE_S 20.59um 0.95um 20.79um 1.15um
+} {
+    box $x1 $y1 $x2 $y2
+    select clear
+    select area
+    puts $fgeo "$name [what -listall]"
+}
+select clear
+close $fgeo
+select top cell
+expand
 puts "top_cell=[cellname list self]"
 puts "children=[cellname list children ptat_core]"
 set fout [open "$outdir/instance_ports.txt" w]
