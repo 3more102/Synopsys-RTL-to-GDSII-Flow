@@ -133,12 +133,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Magic and Netgen
+      - name: Install IC Magic and Netgen
         run: |
-          sudo apt-get update
-          sudo apt-get install -y magic netgen
-          magic --version || magic -version || true
-          netgen -batch version || true
+          set -euxo pipefail
+          curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+          ./bin/micromamba create -y -p /home/runner/eda -c litex-hub -c conda-forge magic netgen
+          /home/runner/eda/bin/magic --version || /home/runner/eda/bin/magic -version
+          /home/runner/eda/bin/netgen -batch version || true
+          echo "/home/runner/eda/bin" >> "$GITHUB_PATH"
       - name: Install pinned SKY130 open_pdks build
         uses: TinyTapeout/volare-action@a81950837885dbfeb37f8405fe90e7d047cf3f62
         with:
@@ -151,7 +153,7 @@ jobs:
           test -f "$PDK_ROOT/sky130A/libs.tech/magic/sky130A.magicrc"
           test -f "$PDK_ROOT/sky130A/libs.tech/netgen/sky130A_setup.tcl"
           mkdir -p ci_ptat/physical/out
-          magic -dnull -noconsole -rcfile "$PDK_ROOT/sky130A/libs.tech/magic/sky130A.magicrc" < ci_ptat/physical/probe.tcl | tee ci_ptat/physical/out/magic_probe.log
+          /home/runner/eda/bin/magic -dnull -noconsole -rcfile "$PDK_ROOT/sky130A/libs.tech/magic/sky130A.magicrc" < ci_ptat/physical/probe.tcl | tee ci_ptat/physical/out/magic_probe.log
       - name: Show physical outputs
         if: always()
         run: |
